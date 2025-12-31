@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "longevity-biotech-insights"
+version = "0.1.0"
+description = "Interactive dashboard exploring the longevity biotech landscape."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Francesco Neri" }
+]
+dependencies = ["dash"]
+
+[project.scripts]
+lbi = "lbi_app.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lbi_app*"]
