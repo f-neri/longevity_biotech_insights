@@ -12,7 +12,10 @@ license = { file = "LICENSE" }
 authors = [
   { name = "Francesco Neri" }
 ]
-dependencies = ["dash"]
+dependencies = [
+  "dash",
+  "dash-bootstrap-components"
+]
 
 [project.scripts]
 lbi = "lbi_app.app:main"
