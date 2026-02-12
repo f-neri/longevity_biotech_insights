@@ -13,12 +13,14 @@ authors = [
   { name = "Francesco Neri" }
 ]
 dependencies = [
-  "dash",
-  "dash-bootstrap-components"
+  "dash>=2.0",
+  "dash-bootstrap-components>=1.0",
+  "pandas>=2.0",
 ]
 
 [project.scripts]
 lbi = "lbi_app.app:main"
+lbi-update = "lbi_app.etl.pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
