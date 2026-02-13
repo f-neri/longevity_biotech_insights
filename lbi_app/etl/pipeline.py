@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 from lbi_app.etl.extract import extract_companies_raw
 from lbi_app.etl.transform import transform_companies_from_csv
 
+logger = logging.getLogger(__name__)
 
 def run_pipeline() -> None:
     """
@@ -10,16 +12,17 @@ def run_pipeline() -> None:
     1. Extract raw data
     2. Transform into cleaned dataset
     """
-    print("Step 1/2: Extracting raw companies data...")
     extract_companies_raw()
 
-    print("Step 2/2: Transforming into cleaned dataset...")
     transform_companies_from_csv()
-
-    print("Pipeline complete. Data updated.")
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     run_pipeline()
 
 
