@@ -7,7 +7,6 @@ import json
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 RAW_PATH = DATA_DIR / "companies_raw.csv"
-CLEAN_PATH = DATA_DIR / "companies_clean.csv"
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +167,6 @@ def transform_companies(
 
 def transform_companies_from_csv(
     raw_path: Path = RAW_PATH,
-    out_path: Path = CLEAN_PATH,
     drop_all_empty_columns: bool = True,
 ) -> pd.DataFrame:
     logger.info("=== TRANSFORM STEP ===")
@@ -178,15 +176,11 @@ def transform_companies_from_csv(
         "   %s",
         raw_path
     )
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
+    
     df_raw = pd.read_csv(raw_path)
     logger.info("Raw companies loaded. rows=%d cols=%d", df_raw.shape[0], df_raw.shape[1])
 
     df_clean = transform_companies(df_raw, drop_all_empty_columns=drop_all_empty_columns)
-
-    df_clean.to_csv(out_path, index=False)
-    logger.info("Saved cleaned companies CSV: %s", out_path)
 
     return df_clean
 
