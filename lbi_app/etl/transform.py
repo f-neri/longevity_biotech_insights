@@ -144,7 +144,10 @@ def transform_companies(
         if dropped_empty_cols:
             logger.info("Dropped %d fully empty column(s): %s", len(dropped_empty_cols), dropped_empty_cols)
 
-    # 6) Summary
+    # 6) TODO: Additional cleaning steps to consider:
+    # - Standardize date columns (detect common date patterns and convert to datetime)
+    
+    # 7) Summary
     n_rows_out, n_cols_out = df.shape
     
     summary = {

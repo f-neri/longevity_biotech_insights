@@ -8,7 +8,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 SHEET_ID = "1DEjg-1EsbT_ZKxhdcZJrLinyqttbxxNJopP_PoCdodw"
-GID = 0
+GID = 1481370956
 
 # lbi_app/etl/extract.py -> repo root
 REPO_ROOT = Path(__file__).resolve().parents[2]
