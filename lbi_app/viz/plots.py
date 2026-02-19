@@ -1,24 +1,80 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-
-# Base layout and styling for all figures
-
-BASE_LAYOUT = dict(
-    template="plotly_dark",
-    # margin=dict(l=40, r=20, t=60, b=120),
-    # height=600,
-)
-
-def apply_base_layout(fig):
-    fig.update_layout(**BASE_LAYOUT)
-    return fig
+import plotly.io as pio
 
 
+# ----------------------------
+# Theme + Plotly template
+# ----------------------------
+
+CYBORG = {
+    "bg": "#060606",
+    "fg": "#adafae",
+    "grid": "rgba(255,255,255,0.1)",
+    "border": "#dee2e6",
+    "primary": "#2a9fd6",
+    "secondary": "#555555",
+    "success": "#77b300",
+    "info": "#9933cc",
+    "warning": "#ff8800",
+    "danger": "#cc0000",
+}
+
+PLOTLY_COLORWAY = [
+    CYBORG["primary"],
+    CYBORG["info"],
+    CYBORG["success"],
+    CYBORG["warning"],
+    CYBORG["danger"],
+    CYBORG["secondary"],
+]
+
+
+def register_lbi_template(*, name: str = "lbi_cyborg") -> str:
+    """
+    Register (and set) the default Plotly template for the LBI app.
+    """
+    template = go.layout.Template()
+
+    template.layout = dict(
+        template="plotly_dark",
+        colorway=PLOTLY_COLORWAY,
+        paper_bgcolor="rgba(0,0,0,0)",  # let dbc.Card background show through
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=CYBORG["fg"]),
+        margin=dict(l=60, r=60, t=60, b=60),
+        legend=dict(
+            y=0.5,
+            yanchor="middle",
+            xanchor="left",
+        ),
+        xaxis=dict(
+            gridcolor=CYBORG["grid"],
+            zerolinecolor=CYBORG["grid"],
+            linecolor=CYBORG["secondary"],
+        ),
+        yaxis=dict(
+            gridcolor=CYBORG["grid"],
+            zerolinecolor=CYBORG["grid"],
+            linecolor=CYBORG["secondary"],
+        ),
+    )
+
+    pio.templates[name] = template
+    pio.templates.default = name
+    return name
+
+
+# Register + set default template immediately when this module is imported
+register_lbi_template()
+
+
+# ----------------------------
 # Category counts and bar chart
+# ----------------------------
 
 def category_counts(df: pd.DataFrame) -> pd.DataFrame:
     counts = (
@@ -36,7 +92,7 @@ def category_counts(df: pd.DataFrame) -> pd.DataFrame:
     return counts
 
 
-def category_bar_figure(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
+def category_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
     counts = category_counts(df).head(top_n)
 
     fig = px.bar(
@@ -44,11 +100,24 @@ def category_bar_figure(df: pd.DataFrame, top_n: int = 20) -> go.Figure:
         x="categories",
         y="n_companies",
         title=f"Companies per Category (Top {top_n})",
+        labels={
+            "categories": "Category",
+            "n_companies": "Company Number",
+        },
     )
 
-    return apply_base_layout(fig)
+    fig.update_layout(
+        xaxis=dict(
+            title=None,
+            tickangle=+45,
+        ),
+    )
+    return fig
 
+
+# ----------------------------
 # Companies founded over time
+# ----------------------------
 
 def companies_founded_over_time_figure(
     df: pd.DataFrame,
@@ -87,37 +156,27 @@ def companies_founded_over_time_figure(
 
     fig = go.Figure()
 
-    # Bars: new companies
-    fig.add_trace(
-        go.Bar(
-            x=counts["year"],
-            y=counts["new_companies"],
-            name="Companies founded",
-        )
-    )
-
-    # Line: cumulative (same y-axis)
     fig.add_trace(
         go.Scatter(
             x=counts["year"],
             y=counts["cumulative_companies"],
-            name="Cumulative companies",
+            name="Total",
             mode="lines+markers",
         )
     )
 
-    # Make sure the axis range fits the cumulative max
-    y_max = counts["cumulative_companies"].max()
-
-    fig.update_layout(
-        title="Companies founded over time",
-        xaxis_title="Year founded",
-        yaxis=dict(
-            title="Number of Companies",
-            fixedrange=False, # allow zoom/pan
-        ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        margin=dict(l=60, r=40, t=70, b=60),
+    fig.add_trace(
+        go.Bar(
+            x=counts["year"],
+            y=counts["new_companies"],
+            name="New",
+        )
     )
 
-    return apply_base_layout(fig)
+    fig.update_layout(
+        title="Companies Founded over Time",
+        xaxis_title="Year",
+        yaxis_title="Company Number",
+    )
+
+    return fig

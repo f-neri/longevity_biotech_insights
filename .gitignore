@@ -211,3 +211,6 @@ data/companies_raw.csv
 
 # Notebooks
 notebooks/
+
+# LBI design masterfile
+lbi_app/assets/LBI.svg

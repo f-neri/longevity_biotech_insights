@@ -22,49 +22,69 @@ def load_snapshot() -> pd.DataFrame:
 def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
     df = load_snapshot()
-    fig_categories = category_bar_figure(df, top_n=15)
+    fig_categories = category_bar_figure(df, top_n=10)
     fig_founded_over_time = companies_founded_over_time_figure(df)
 
     app = dash.Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
 
+    app._favicon = "favicon.ico"
+
     app.layout = dbc.Container(
         [
-            html.H1("Longevity Biotech Insights", className="mt-4"),
-            html.P(
+            html.Img(
+                src="/assets/LBI_white_text_yellow_bulb.svg",
+                style={
+                    "maxWidth": "600px",
+                    "width": "100%",
+                    "height": "auto",
+                    "marginTop": "1rem",
+                    "marginBottom": "1rem",
+                },
+            ),
+
+            dcc.Markdown(
+                """
+                Longevity Biotech Insights is a dashboard showcasing information
+                about the aging/longevity biotech industry.
+
+                This website was created and is maintained by [Francesco Neri](https://f-neri.github.io/). All data is sourced from [AgingBiotech.info](https://agingbiotech.info/companies/),
+                a website created and mantained by [Karl Pfleger](https://www.linkedin.com/in/karl-r-pfleger/).
+                """,
+            ),
+            dbc.Row(
                 [
-                    "Longevity Biotech Insights is a dashboard showcasing"
-                    " information about aging/longevity-focused"
-                    " biotechnology companies. All data is sourced from"
-                    " [AgingBiotech.info](https://agingbiotech.info/companies/)"
-                    " a website created and mantained by [Karl Pfleger](https://www.google.com/url?q=https://www.linkedin.com/in/karl-r-pfleger/&sa=D&source=editors&ust=1771032486980320&usg=AOvVaw0pIucVyWHaS9pL_3fDxO8N).",
+                    dbc.Col(
+                        dbc.Card(
+                            dbc.CardBody(
+                                [
+                                    dcc.Graph(
+                                        id="founded-over-time",
+                                        figure=fig_founded_over_time,
+                                        config={"displayModeBar": False},
+                                    ),
+                                ]
+                            ),
+                        ),
+                        xs=12,
+                        md=6,
+                    ),
+                    dbc.Col(
+                        dbc.Card(
+                            dbc.CardBody(
+                                [
+                                    dcc.Graph(
+                                        id="category-bar",
+                                        figure=fig_categories,
+                                        config={"displayModeBar": False},
+                                    ),
+                                ]
+                            ),
+                        ),
+                        xs=12,
+                        md=6,
+                    )
                 ],
-                className="text-muted",
-            ),
-            dbc.Card(
-                dbc.CardBody(
-                    [
-                        html.H4("Longevity Biotech Companies Over Time", className="card-title"),
-                        dcc.Graph(
-                            id="founded-over-time",
-                            figure=fig_founded_over_time,
-                            config={"displayModeBar": False},
-                        ),
-                    ]
-                ),
-                className="mt-3",
-            ),
-            dbc.Card(
-                dbc.CardBody(
-                    [
-                        html.H4("Companies per Category", className="card-title"),
-                        dcc.Graph(
-                            id="category-bar",
-                            figure=fig_categories,
-                            config={"displayModeBar": False},
-                        ),
-                    ]
-                ),
-                className="mt-3",
+                className="mt-3 g-3",
             ),
         ],
         fluid=True,
