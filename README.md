@@ -1,3 +1,12 @@
+---
+title: Longevity Biotech Insights
+emoji: 🧬
+colorFrom: indigo
+colorTo: yellow
+sdk: docker
+pinned: false
+---
+
 # Longevity Biotech Insights (LBI)
 
 An interactive dashboard to explore the longevity and aging biotech landscape,
