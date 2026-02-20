@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from importlib import metadata
 
 import dash
 import dash_bootstrap_components as dbc
@@ -10,7 +11,6 @@ import pandas as pd
 
 from lbi_app.viz.plots import category_bar_figure, companies_founded_over_time_figure
 
-# lbi_app/app.py -> repo root
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLEAN_PATH = REPO_ROOT / "data" / "companies_clean.csv"
 
@@ -19,6 +19,14 @@ def load_snapshot() -> pd.DataFrame:
     """Load the latest cleaned snapshot used by the dashboard."""
     return pd.read_csv(CLEAN_PATH)
 
+def get_app_version() -> str:
+    try:
+        return metadata.version("longevity-biotech-insights")
+    except metadata.PackageNotFoundError:
+        # Fallback for edge cases (e.g., running without installation)
+        return "dev"
+    
+version = get_app_version()
 
 def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
@@ -46,14 +54,10 @@ def create_app() -> dash.Dash:
                     "marginBottom": "1rem",
                 },
             ),
-
             dcc.Markdown(
                 """
                 Longevity Biotech Insights is a dashboard showcasing information
                 about the aging/longevity biotech industry.
-
-                This website was created and is maintained by [Francesco Neri](https://f-neri.github.io/). All raw data is sourced from [AgingBiotech.info](https://agingbiotech.info/companies/),
-                a website created and mantained by [Karl Pfleger](https://www.linkedin.com/in/karl-r-pfleger/).
                 """,
             ),
             dbc.Row(
@@ -90,6 +94,20 @@ def create_app() -> dash.Dash:
                     )
                 ],
                 className="mt-3 g-3",
+            ),
+            html.Footer(
+                dbc.Container(
+                    [
+                        dcc.Markdown(
+                            f"Longevity Biotech Insights · v{version} ·"
+                            " Created and maintained by [Francesco Neri](https://f-neri.github.io/) ·"
+                            " Raw data: [AgingBiotech.info](https://agingbiotech.info/companies/) "
+                            " by [Karl Pfleger](https://www.linkedin.com/in/karl-r-pfleger/)",
+                            className="text-center text-muted small",
+                        )
+                    ],
+                    className="text-center py-3",
+                )
             ),
         ],
         fluid=True,
