@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import dash
@@ -47,7 +48,7 @@ def create_app() -> dash.Dash:
                 Longevity Biotech Insights is a dashboard showcasing information
                 about the aging/longevity biotech industry.
 
-                This website was created and is maintained by [Francesco Neri](https://f-neri.github.io/). All data is sourced from [AgingBiotech.info](https://agingbiotech.info/companies/),
+                This website was created and is maintained by [Francesco Neri](https://f-neri.github.io/). All raw data is sourced from [AgingBiotech.info](https://agingbiotech.info/companies/),
                 a website created and mantained by [Karl Pfleger](https://www.linkedin.com/in/karl-r-pfleger/).
                 """,
             ),
@@ -97,7 +98,8 @@ def create_app() -> dash.Dash:
 def main() -> None:
     """Entrypoint for running the dev server."""
     app = create_app()
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", "8050"))
+    app.run(host="0.0.0.0", port=port, debug=True)
 
 
 if __name__ == "__main__":

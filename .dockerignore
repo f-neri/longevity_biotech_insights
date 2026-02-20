@@ -1,0 +1,30 @@
+# Python caches
+__pycache__/
+*.pyc
+
+# Build artifacts
+dist/
+build/
+
+# Local envs
+.venv/
+venv/
+env/
+.conda/
+.condarc
+
+# Jupyter
+notebooks/
+.ipynb_checkpoints/
+
+# OS/editor junk
+.DS_Store
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Keep egg-info if you like locally, but it doesn't need to be sent to Docker build context
+*.egg-info/
