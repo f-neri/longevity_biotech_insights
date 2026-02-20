@@ -26,7 +26,11 @@ def create_app() -> dash.Dash:
     fig_categories = category_bar_figure(df, top_n=10)
     fig_founded_over_time = companies_founded_over_time_figure(df)
 
-    app = dash.Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
+    app = dash.Dash(
+        __name__,
+        external_stylesheets=[dbc.themes.CYBORG],
+        title="Longevity Biotech Insights",
+    )
 
     app._favicon = "favicon.ico"
 
