@@ -12,12 +12,15 @@ import pandas as pd
 from lbi_app.viz.plots import category_bar_figure, companies_founded_over_time_figure
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CLEAN_PATH = REPO_ROOT / "data" / "companies_clean.csv"
+# match the format used by the pipeline/load step
+CLEAN_PATH = REPO_ROOT / "data" / "companies_clean.parquet"
 
 
 def load_snapshot() -> pd.DataFrame:
-    """Load the latest cleaned snapshot used by the dashboard."""
-    return pd.read_csv(CLEAN_PATH)
+    """
+    Load the latest cleaned snapshot used by the dashboard.
+    """
+    return pd.read_parquet(CLEAN_PATH)
 
 def get_app_version() -> str:
     try:

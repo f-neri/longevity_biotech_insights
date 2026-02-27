@@ -50,8 +50,12 @@ def make_unique_columns(cols: pd.Index) -> pd.Index:
 
 def normalize_object_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Replace embedded newlines in string columns with spaces and strip whitespace.
-    Converts the literal string "nan" back to missing values (pd.NA).
+    Applies `clean_string_series()` to each column with dtype
+    "object" or "string" to standardize textual formatting
+    (whitespace normalization, removal of bracketed text, etc.).
+
+    This step performs formatting normalization only.
+    It does not perform semantic cleaning such as missing-value coercion.
     """
     out = df.copy()
 
@@ -85,6 +89,84 @@ def drop_fully_empty_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]
     return out, empty_cols
 
 
+def standardize_date_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """
+    Detect and convert columns with date-related names to datetime dtype.
+    
+    Only columns whose names contain specific keywords are considered for conversion.
+    Supported keywords: "date", "time", "founded", "acquisition", "launch", "started", 
+    "created", "established".
+    
+    Conversion is only applied if at least 50% of non-null values successfully parse 
+    as datetime, to avoid unnecessary NaT introduction in ambiguous columns.
+    
+    Args:
+        df: Input DataFrame.
+    
+    Returns:
+        Tuple of (modified DataFrame with converted date columns, list of column names 
+        that were successfully converted).
+    """
+    out = df.copy()
+    converted_cols: list[str] = []
+    
+    # Common date-related column name patterns
+    date_keywords = ["date", "time", "founded", "acquisition", "launch", "started", "created", "established"]
+    
+    # Object/string columns that might contain dates
+    obj_cols = out.select_dtypes(include=["object", "string"]).columns
+    
+    for col in obj_cols:
+        col_lower = col.lower()
+        
+        # Check if column name suggests it contains dates
+        is_date_col = any(keyword in col_lower for keyword in date_keywords)
+        
+        if not is_date_col:
+            continue
+        
+        # Skip if column is mostly empty
+        non_null_count = out[col].notna().sum()
+        if non_null_count < 1:
+            continue
+        
+        try:
+            # Replace empty strings with NaN first
+            col_data = out[col].replace({"": pd.NA})
+            
+            # Try to infer and convert to datetime
+            converted = pd.to_datetime(
+                col_data,
+                errors="coerce",
+            )
+            
+            # Check if conversion was successful (at least 50% of non-null values converted)
+            successful_conversions = converted.notna().sum()
+            conversion_rate = successful_conversions / non_null_count
+            
+            if conversion_rate >= 0.5:
+                out[col] = converted
+                converted_cols.append(col)
+                logger.info(
+                    "Converted column %r to datetime. Success rate: %.1f%% (%d/%d values)",
+                    col,
+                    conversion_rate * 100,
+                    successful_conversions,
+                    non_null_count,
+                )
+            else:
+                logger.debug(
+                    "Column %r has insufficient datetime conversions (%.1f%%). Skipping.",
+                    col,
+                    conversion_rate * 100,
+                )
+        except Exception as e:
+            logger.debug("Failed to convert column %r to datetime: %s", col, str(e))
+            continue
+    
+    return out, converted_cols
+
+
 def transform_companies(
     df_raw: pd.DataFrame,
     drop_all_empty_columns: bool = True,
@@ -97,6 +179,8 @@ def transform_companies(
     
     # 1) Clean column names (but keep original names for audit/logging)
     original_cols = df.columns.astype(str).tolist()
+    
+    df.rename(columns={df.columns[0]: "Company"}, inplace=True)
     cleaned_cols = clean_column_names(df.columns).astype(str).tolist()
 
     for before, after in zip(original_cols, cleaned_cols, strict=False):
@@ -137,16 +221,17 @@ def transform_companies(
     # 4) Normalize string columns
     df = normalize_object_columns(df)
 
-    # 5) Optionally drop fully empty columns (safe)
+    # 5) Optionally drop fully empty columns
     dropped_empty_cols: list[str] = []
     if drop_all_empty_columns:
         df, dropped_empty_cols = drop_fully_empty_columns(df)
         if dropped_empty_cols:
             logger.info("Dropped %d fully empty column(s): %s", len(dropped_empty_cols), dropped_empty_cols)
 
-    # 6) TODO: Additional cleaning steps to consider:
-    # - Standardize date columns (detect common date patterns and convert to datetime)
-    
+    # 6) Standardize date columns (detect common date patterns and convert to datetime)
+    df, converted_date_cols = standardize_date_columns(df)
+
+
     # 7) Summary
     n_rows_out, n_cols_out = df.shape
     
@@ -158,6 +243,7 @@ def transform_companies(
         "empty_name_columns_renamed": len(empty_idxs),
         "duplicate_names_detected": len(dup_names),
         "fully_empty_columns_dropped": len(dropped_empty_cols),
+        "date_columns_converted": len(converted_date_cols),
     }
 
     logger.info(

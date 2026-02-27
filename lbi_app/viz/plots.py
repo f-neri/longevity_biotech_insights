@@ -140,7 +140,7 @@ def companies_founded_over_time_figure(
     years = (
         df[[year_col]]
         .rename(columns={year_col: "year"})
-        .assign(year=lambda x: pd.to_numeric(x["year"], errors="coerce"))
+        .assign(year=lambda x: x["year"].dt.year)
         .dropna(subset=["year"])
         .assign(year=lambda x: x["year"].astype(int))
         .query("year >= @min_year and year <= @max_year")

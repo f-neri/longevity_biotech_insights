@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 # lbi_app/etl/load.py -> repo root
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APP_DATA_DIR = REPO_ROOT / "data"
-CLEAN_PATH = APP_DATA_DIR / "companies_clean.csv"
+# Use Parquet to preserve pandas dtypes (datetime, categorical, etc.).
+CLEAN_PATH = APP_DATA_DIR / "companies_clean.parquet"
 
 
 def load_companies_snapshot(
@@ -27,12 +28,24 @@ def load_companies_snapshot(
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Atomic-ish write: write temp then replace
-    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
-    df.to_csv(tmp_path, index=False)
-    tmp_path.replace(out_path)
+    # Atomic-ish write: write temp then replace.
+    # Always produce both parquet and csv snapshots.  The dashboard reads
+    # parquet, but having a csv alongside makes manual inspection easier.
+    # We write via temporary files then move to avoid partial writes.
 
-    logger.info("Wrote companies snapshot:\n   %s", out_path)
+    # primary output (parquet)
+    pq_out = out_path.with_suffix(".parquet")
+    pq_tmp = pq_out.with_suffix(pq_out.suffix + ".tmp")
+    df.to_parquet(pq_tmp, index=False)
+    pq_tmp.replace(pq_out)
+
+    # also produce CSV copy
+    csv_out = out_path.with_suffix(".csv")
+    csv_tmp = csv_out.with_suffix(csv_out.suffix + ".tmp")
+    df.to_csv(csv_tmp, index=False)
+    csv_tmp.replace(csv_out)
+
+    logger.info("Wrote companies snapshot (parquet & csv):\n   %s\n   %s", pq_out, csv_out)
 
 def main() -> None:
     logging.basicConfig(
