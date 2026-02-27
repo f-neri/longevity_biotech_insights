@@ -77,16 +77,14 @@ register_lbi_template()
 # ----------------------------
 
 def category_counts(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Count companies per category from a list-valued 'categories' column.
+    """
     counts = (
-        df.assign(category=df["categories"].fillna("NA"))
-        .assign(category=lambda d: d["categories"].astype(str))
-        .assign(category=lambda d: d["categories"].str.split(r"\s*,\s*"))
-        .explode("categories")
-        .assign(category=lambda d: d["categories"].str.strip())
-        .query("category != ''")
+        df[df["categories"].notna()]  # filter out None/NA values
+        .explode("categories")        # expand list column into separate rows
         .groupby("categories", as_index=False)
-        .size()
-        .rename(columns={"size": "n_companies"})
+        .agg(n_companies=("Company", "count"))
         .sort_values("n_companies", ascending=False)
     )
     return counts

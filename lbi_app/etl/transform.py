@@ -89,6 +89,60 @@ def drop_fully_empty_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]
     return out, empty_cols
 
 
+def clean_categories(s: pd.Series) -> pd.Series:
+    """
+    Clean category strings by:
+    1. Splitting comma-separated categories (multiple choices)
+    2. Removing subcategory suffixes (e.g., " / mTOR" from "metabolism / mTOR")
+    3. Stripping trailing annotation characters (*, ?, etc)
+    4. Stripping trailing words like "and", "or", "and/or"
+    5. Normalizing simple plurals when the singular also appears in the same list
+    6. Returning as a list for each row
+    
+    Example:
+        "metabolism / mTOR, mitochondria / NAD+" 
+        -> ["metabolism", "mitochondria"]
+        
+        "stem cells*, epigenetic?"
+        -> ["stem cells", "epigenetic"]
+        
+        "metabolism and/or cell communication?"
+        -> ["metabolism", "cell communication"]
+        
+        "clock" and "clocks" -> ["clock"]
+    """
+    def process_category_string(cat_str):
+        if pd.isna(cat_str):
+            return None
+        
+        # Split by comma to get individual categories
+        categories = str(cat_str).split(",")
+        
+        # For each category, keep only the main part (before " / ") and strip annotations
+        cleaned: list[str] = []
+        for cat in categories:
+            # Extract main category (before " / " if present)
+            main_cat = cat.split("/")[0].strip()
+            
+            # Strip trailing annotation characters (*, ?, comma, etc)
+            main_cat = main_cat.rstrip("*?,")
+            
+            # Strip trailing logical connectives and preserve single words
+            main_cat = main_cat.rstrip()
+            words = main_cat.split()
+            while words and words[-1].lower() in ("and", "or", "and/or"):
+                words.pop()
+            main_cat = " ".join(words)
+            
+            if main_cat:  # only add non-empty
+                cleaned.append(main_cat)
+        
+        # Return as list (or None if empty)
+        return cleaned if cleaned else None
+    
+    return s.apply(process_category_string)
+
+
 def standardize_date_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     """
     Detect and convert columns with date-related names to datetime dtype.
@@ -220,6 +274,44 @@ def transform_companies(
 
     # 4) Normalize string columns
     df = normalize_object_columns(df)
+
+    # 4b) Clean categories column
+    if "categories" in df.columns:
+        df["categories"] = clean_categories(df["categories"])
+        logger.info("Cleaned categories column (removed subcategories, standardized multiple choices)")
+
+        # Global plural normalization: if both "X" and "Xs" appear anywhere in the dataset,
+        # replace all "Xs" with "X"
+        all_cats = df["categories"].explode().dropna().astype(str).unique()
+        global_plural_map: dict[str, str] = {}
+        for cat in all_cats:
+            if cat.endswith("s"):
+                base = cat[:-1]
+                if base in all_cats:
+                    global_plural_map[cat] = base
+        
+        if global_plural_map:
+            logger.info("Normalizing plural categories globally: %s", global_plural_map)
+            def remap_row(lst):
+                if not lst:
+                    return lst
+                return [global_plural_map.get(x, x) for x in lst]
+            df["categories"] = df["categories"].apply(remap_row)
+        
+        # Final deduplication: remove duplicate categories within each row
+        def deduplicate_row(lst):
+            if not lst:
+                return lst
+            seen = set()
+            result = []
+            for v in lst:
+                if v not in seen:
+                    seen.add(v)
+                    result.append(v)
+            return result
+        
+        df["categories"] = df["categories"].apply(deduplicate_row)
+
 
     # 5) Optionally drop fully empty columns
     dropped_empty_cols: list[str] = []
