@@ -4,6 +4,7 @@ import pandas as pd
 import math
 import plotly.graph_objects as go
 import plotly.io as pio
+import plotly.colors as pc
 
 
 # ----------------------------
@@ -117,18 +118,75 @@ def category_counts(df: pd.DataFrame) -> pd.DataFrame:
     return counts
 
 
-def category_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
+def category_polar_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
     counts = category_counts(df).head(top_n)
 
     fig = go.Figure()
 
+    categories = counts["categories"].astype(str).tolist()
+    values = counts["n_companies"].astype(float).tolist()
+    company_lists = counts["company_list"].tolist()
+
+    max_r = max(values) if values else 0.0
+    blue_scale = [
+        [0.00, "#0a1f44"],
+        [0.20, "#123b73"],
+        [0.45, "#1f6db2"],
+        [0.70, "#35a3dc"],
+        [1.00, "#8fe9ff"],
+    ]
+
+    if max_r > 0:
+        # Stack thin radial slices to emulate a smooth vertical gradient inside each wedge.
+        n_steps = min(64, max(24, int(max_r * 2)))
+        step = max_r / n_steps
+
+        for i in range(n_steps):
+            lower = i * step
+            upper = (i + 1) * step
+
+            theta_slice: list[str] = []
+            r_slice: list[float] = []
+
+            for theta, value in zip(categories, values):
+                height = min(value, upper) - lower
+                if height <= 0:
+                    continue
+                theta_slice.append(theta)
+                r_slice.append(height)
+
+            if not theta_slice:
+                continue
+
+            color_ratio = upper / max_r
+            slice_color = pc.sample_colorscale(blue_scale, [color_ratio])[0]
+
+            fig.add_trace(
+                go.Barpolar(
+                    theta=theta_slice,
+                    r=r_slice,
+                    base=[lower] * len(theta_slice),
+                    marker=dict(
+                        color=[slice_color] * len(theta_slice),
+                        line=dict(color="rgba(0,0,0,0)", width=0),
+                    ),
+                    hoverinfo="skip",
+                    showlegend=False,
+                )
+            )
+
+    # Add an invisible bar trace on top to capture hover events and show company lists.
     fig.add_trace(
-        go.Bar(
-            x=counts["categories"],
-            y=counts["n_companies"],
-            customdata=counts["company_list"],
+        go.Barpolar(
+            theta=categories,
+            r=values,
+            customdata=company_lists,
+            marker=dict(
+                color="rgba(0,0,0,0)",
+                line=dict(color=CYBORG["bg"], width=1.2),
+            ),
             hovertemplate=(
-                "<b>%{x}</b><br>(%{y} Companies)<br><br>"
+                "<b>%{theta}</b><br>(%{r} Companies)<br><br>"
                 "%{customdata}<extra></extra>"
             ),
         )
@@ -136,14 +194,24 @@ def category_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
 
     fig.update_layout(
         title=f"Companies per Category (Top {top_n})",
-        xaxis=dict(
-            title=None,
-            tickangle=+45,
-            automargin=True,
+        polar=dict(
+            bgcolor="rgba(0,0,0,0)",
+            angularaxis=dict(
+                direction="clockwise",
+                rotation=90 - 360 / (2 * top_n),
+                gridcolor=CYBORG["grid"],
+                linecolor=CYBORG["secondary"],
+            ),
+            radialaxis=dict(
+                gridcolor=CYBORG["grid"],
+                linecolor=CYBORG["secondary"],
+                tickfont=dict(color=CYBORG["fg"]),
+                angle=90,
+                tickangle=90,
+                side="counterclockwise",
+            ),
         ),
-        yaxis=dict(
-            title="Company Number",
-        ),
+        showlegend=False,
     )
 
     return fig

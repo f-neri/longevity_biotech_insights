@@ -10,7 +10,7 @@ from dash import dcc, html
 import pandas as pd
 
 from lbi_app.viz.plots import (
-    category_bar_figure,
+    category_polar_bar_figure,
     clinical_stage_bar_figure,
     companies_founded_over_time_figure,
     geo_map_figure,
@@ -39,7 +39,7 @@ version = get_app_version()
 def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
     df = load_snapshot()
-    fig_categories = category_bar_figure(df, top_n=10)
+    fig_categories = category_polar_bar_figure(df, top_n=10)
     fig_founded_over_time = companies_founded_over_time_figure(df)
     fig_clinical_stage = clinical_stage_bar_figure(df)
     fig_geo = geo_map_figure(df)
