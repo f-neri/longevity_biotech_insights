@@ -4,11 +4,225 @@ import logging
 from pathlib import Path
 import pandas as pd
 import json
+import re
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 RAW_PATH = DATA_DIR / "companies_raw.csv"
 
 logger = logging.getLogger(__name__)
+
+CLINICAL_STAGE_ORDER = [
+    "Pre-Clinical",
+    "Phase 1",
+    "Phase 2",
+    "Phase 3",
+    "Pre-Commercial",
+    "Commercial",
+]
+
+# ---------------------------------------------------------------------------
+# Geo parsing lookup tables
+# ---------------------------------------------------------------------------
+
+_US_STATE_ABBREVS: dict[str, str] = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+    "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+    "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho",
+    "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+    "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York",
+    "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah",
+    "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
+    "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
+}
+
+# City abbreviations / well-known US cities → US state (checked before state abbrevs,
+# so e.g. "SD" resolves to San Diego / California rather than South Dakota)
+_US_CITIES: dict[str, str] = {
+    "SF": "California", "SD": "California", "LA": "California",
+    "SAN FRANCISCO": "California", "SAN DIEGO": "California",
+    "LOS ANGELES": "California", "PALO ALTO": "California",
+    "SOUTH SAN FRANCISCO": "California", "REDWOOD CITY": "California",
+    "MENLO PARK": "California", "SANTA BARBARA": "California",
+    "SAN JOSE": "California",
+    "NYC": "New York", "NEW YORK": "New York", "NY": "New York",
+    "BOSTON": "Massachusetts", "CAMBRIDGE": "Massachusetts",
+    "DC": "District of Columbia", "WASHINGTON": "District of Columbia",
+    "WASHINGTON DC": "District of Columbia",
+    "CHICAGO": "Illinois",
+    "HOUSTON": "Texas", "DALLAS": "Texas", "AUSTIN": "Texas",
+    "DETROIT": "Michigan",
+    "MIAMI": "Florida", "TAMPA": "Florida", "TAMPA BAY": "Florida",
+    "JACKSONVILLE": "Florida", "ORLANDO": "Florida",
+    "SEATTLE": "Washington",
+    "DENVER": "Colorado",
+    "ATLANTA": "Georgia",
+    "RENO": "Nevada", "LAS VEGAS": "Nevada",
+    "BIRMINGHAM": "Alabama",
+    "GREENVILLE": "South Carolina", "CHARLESTON": "South Carolina",
+    "CINCINNATI": "Ohio", "CINCINATTI": "Ohio",  # common misspelling
+    "COLUMBUS": "Ohio", "CLEVELAND": "Ohio",
+    "SYRACUSE": "New York", "BUFFALO": "New York",
+    "INDIANAPOLIS": "Indiana",
+    "MINNEAPOLIS": "Minnesota",
+    "KANSAS CITY": "Missouri", "ST. LOUIS": "Missouri",
+    "NASHVILLE": "Tennessee", "MEMPHIS": "Tennessee",
+    "CHARLOTTE": "North Carolina", "RALEIGH": "North Carolina",
+    "PITTSBURGH": "Pennsylvania", "PHILADELPHIA": "Pennsylvania",
+    "BALTIMORE": "Maryland",
+    "RICHMOND": "Virginia",
+    "PORTLAND": "Oregon",
+    "SALT LAKE CITY": "Utah",
+    "PHOENIX": "Arizona", "TUCSON": "Arizona",
+    "OMAHA": "Nebraska",
+}
+
+_COUNTRY_ALIASES: dict[str, str] = {
+    "US": "United States", "U.S.": "United States", "USA": "United States",
+    "UNITED STATES": "United States",
+    "UK": "United Kingdom", "UNITED KINGDOM": "United Kingdom",
+    "ENGLAND": "United Kingdom", "SCOTLAND": "United Kingdom",
+    "WALES": "United Kingdom", "GREAT BRITAIN": "United Kingdom",
+    "NETHERLANDS": "Netherlands", "HOLLAND": "Netherlands",
+    "SWITZERLAND": "Switzerland",
+    "ISRAEL": "Israel",
+    "JAPAN": "Japan",
+    "AUSTRIA": "Austria",
+    "SPAIN": "Spain",
+    "DENMARK": "Denmark",
+    "CROATIA": "Croatia",
+    "SOUTH KOREA": "South Korea", "KOREA": "South Korea",
+    "INDIA": "India",
+    "CANADA": "Canada",
+    "GERMANY": "Germany",
+    "FRANCE": "France",
+    "AUSTRALIA": "Australia",
+    "CHINA": "China",
+    "SWEDEN": "Sweden",
+    "NORWAY": "Norway",
+    "BELGIUM": "Belgium",
+    "ITALY": "Italy",
+    "SINGAPORE": "Singapore",
+    "IRELAND": "Ireland",
+    "BRAZIL": "Brazil",
+    "PORTUGAL": "Portugal",
+    "FINLAND": "Finland",
+    "CZECH REPUBLIC": "Czech Republic", "CZECHIA": "Czech Republic",
+    "POLAND": "Poland",
+    "TAIWAN": "Taiwan",
+    "HONG KONG": "Hong Kong",
+    "NEW ZEALAND": "New Zealand",
+    "SOUTH AFRICA": "South Africa",
+    "ARGENTINA": "Argentina",
+    "MEXICO": "Mexico",
+    "RUSSIA": "Russia",
+}
+
+_CITY_TO_COUNTRY: dict[str, str] = {
+    "ZURICH": "Switzerland", "GENEVA": "Switzerland", "BASEL": "Switzerland",
+    "TOKYO": "Japan", "OSAKA": "Japan",
+    "BARCELONA": "Spain", "MADRID": "Spain",
+    "COPENHAGEN": "Denmark",
+    "LONDON": "United Kingdom", "OXFORD": "United Kingdom",
+    "AMSTERDAM": "Netherlands", "LEIDEN": "Netherlands",
+    "VIENNA": "Austria",
+    "NEWCASTLE": "United Kingdom",
+    "TORONTO": "Canada", "VANCOUVER": "Canada", "MONTREAL": "Canada",
+    "PARIS": "France", "LYON": "France",
+    "BERLIN": "Germany", "MUNICH": "Germany", "HAMBURG": "Germany",
+    "STOCKHOLM": "Sweden",
+    "OSLO": "Norway",
+    "BANGALORE": "India", "MUMBAI": "India",
+    "SEOUL": "South Korea", "BUSAN": "South Korea",
+    "TEL AVIV": "Israel", "JERUSALEM": "Israel",
+    "BRUSSELS": "Belgium",
+    "ROME": "Italy", "MILAN": "Italy",
+    "SINGAPORE": "Singapore",
+    "SYDNEY": "Australia", "MELBOURNE": "Australia",
+    "BEIJING": "China", "SHANGHAI": "China",
+}
+
+
+def clean_geo(s: pd.Series) -> pd.Series:
+    """
+    Parse raw geo strings into canonical location lists.
+
+    Returns:
+    - ["United States - {State}", ...] for US locations
+    - ["Country", ...] for international locations
+    - ["Unknown"] for unrecognised / blank values
+
+    All recognised locations are retained and deduplicated in encounter order.
+    """
+
+    def _single_token(token: str) -> str | None:
+        upper = token.strip().upper()
+        if not upper:
+            return None
+        if upper in _US_CITIES:
+            return f"United States - {_US_CITIES[upper]}"
+        if upper in _US_STATE_ABBREVS:
+            return f"United States - {_US_STATE_ABBREVS[upper]}"
+        if upper in _COUNTRY_ALIASES:
+            return _COUNTRY_ALIASES[upper]
+        if upper in _CITY_TO_COUNTRY:
+            return _CITY_TO_COUNTRY[upper]
+        return None
+
+    def _parse_chunk(chunk: str) -> list[str]:
+        chunk = chunk.strip()
+        if not chunk:
+            return []
+
+        # Try the whole chunk as a single token first
+        result = _single_token(chunk)
+        if result:
+            return [result]
+
+        # Split by comma and try contextual interpretations
+        parts = [p.strip() for p in chunk.split(",") if p.strip()]
+        if len(parts) < 2:
+            return []
+
+        last = parts[-1].upper()
+        first = parts[0].upper()
+
+        # "City, ST" pattern → US state abbreviation
+        if len(parts) == 2 and last in _US_STATE_ABBREVS:
+            return [f"United States - {_US_STATE_ABBREVS[last]}"]
+
+        # Collect all recognised tokens among comma-separated parts.
+        # This preserves multi-country entries such as "South Korea, Boston"
+        # (South Korea + United States) and "China, UAE, US, Canada".
+        found: list[str] = []
+        for part in parts:
+            result = _single_token(part)
+            if result and result not in found:
+                found.append(result)
+
+        return found
+
+    def _parse(raw: object) -> list[str]:
+        if pd.isna(raw) or str(raw).strip() == "":
+            return ["Unknown"]
+
+        text = str(raw).strip()
+        found: list[str] = []
+
+        # Split on ";" to separate multi-location entries and collect all recognised.
+        for chunk in [p.strip() for p in text.split(";")]:
+            for result in _parse_chunk(chunk):
+                if result not in found:
+                    found.append(result)
+
+        return found or ["Unknown"]
+
+    return s.apply(_parse)
+
 
 def clean_string_series(s: pd.Series) -> pd.Series:
     """
@@ -134,6 +348,9 @@ def clean_categories(s: pd.Series) -> pd.Series:
                 words.pop()
             main_cat = " ".join(words)
             
+            # Capitalize each word
+            main_cat = main_cat.title()
+            
             if main_cat:  # only add non-empty
                 cleaned.append(main_cat)
         
@@ -141,6 +358,73 @@ def clean_categories(s: pd.Series) -> pd.Series:
         return cleaned if cleaned else None
     
     return s.apply(process_category_string)
+
+
+def clean_clinical_stage(s: pd.Series) -> pd.Series:
+    """
+    Normalize messy clinical stage strings into ordered stage lists per company.
+
+    Output categories are exactly:
+    - Pre-Clinical
+    - Phase 1
+    - Phase 2
+    - Phase 3
+    - Pre-Commercial
+    - Commercial
+
+    If multiple stage hints appear in the same row, retain all matched stages
+    in canonical order and remove duplicates.
+    """
+    stage_patterns = {
+        "Pre-Clinical": r"\b(pre-?clinical|vet pre-?clinical)\b",
+        "Phase 1": r"\b(ph\.? ?1|phase ?1|clinical trials|early clinical|vet clinical)\b",
+        "Phase 2": r"\b(ph\.? ?2|phase ?2)\b",
+        "Phase 3": r"\b(ph\.? ?3|phase ?3|pivotal)\b",
+        "Pre-Commercial": r"\b(pre-?commercial)\b",
+        "Commercial": r"\b(commercial|approved|fda approved|fda accelerated approval|ph\.? ?4|phase ?4)\b",
+    }
+
+    def _normalize_value(value: object) -> list[str] | None:
+        if pd.isna(value):
+            return None
+
+        text = str(value).strip().lower()
+        if not text:
+            return None
+
+        # Remove annotation noise while preserving separators and tokens.
+        text = text.replace("*", "").replace("?", "")
+        text = text.replace(";", ",")
+        text = re.sub(r"\s+", " ", text).strip()
+
+        matches = [
+            stage
+            for stage in CLINICAL_STAGE_ORDER
+            if re.search(stage_patterns[stage], text)
+        ]
+
+        return matches or None
+
+    return s.apply(_normalize_value)
+
+
+def derive_latest_clinical_stage(s: pd.Series) -> pd.Series:
+    """
+    Derive one stage per row from a list-valued clinical stage column.
+    Uses the last value in each list and returns an ordered categorical series.
+    """
+    def _latest(value: object) -> str | None:
+        if isinstance(value, list):
+            cleaned = [
+                str(stage).strip()
+                for stage in value
+                if pd.notna(stage) and str(stage).strip()
+            ]
+            return cleaned[-1] if cleaned else None
+        return None
+
+    latest = s.apply(_latest)
+    return pd.Categorical(latest, categories=CLINICAL_STAGE_ORDER, ordered=True)
 
 
 def standardize_date_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
@@ -187,13 +471,13 @@ def standardize_date_columns(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]
         try:
             # Replace empty strings with NaN first
             col_data = out[col].replace({"": pd.NA})
-            
+
             # Try to infer and convert to datetime
             converted = pd.to_datetime(
                 col_data,
                 errors="coerce",
             )
-            
+
             # Check if conversion was successful (at least 50% of non-null values converted)
             successful_conversions = converted.notna().sum()
             conversion_rate = successful_conversions / non_null_count
@@ -275,10 +559,23 @@ def transform_companies(
     # 4) Normalize string columns
     df = normalize_object_columns(df)
 
+    # 4a) Clean clinical stage column to a canonical, ordered stage taxonomy.
+    if "clinical stage" in df.columns:
+        df["clinical stage"] = clean_clinical_stage(df["clinical stage"])
+        df["latest clinical stage"] = derive_latest_clinical_stage(df["clinical stage"])
+        logger.info(
+            "Cleaned clinical stage column and derived latest clinical stage"
+        )
+
     # 4b) Clean categories column
     if "categories" in df.columns:
         df["categories"] = clean_categories(df["categories"])
         logger.info("Cleaned categories column (removed subcategories, standardized multiple choices)")
+
+    # 4c) Parse geo column into canonical country / US-state locations
+    if "geo" in df.columns:
+        df["geo_clean"] = clean_geo(df["geo"])
+        logger.info("Parsed geo column into canonical locations.")
 
         # Global plural normalization: if both "X" and "Xs" appear anywhere in the dataset,
         # replace all "Xs" with "X"

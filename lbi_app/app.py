@@ -9,7 +9,12 @@ import dash_bootstrap_components as dbc
 from dash import dcc, html
 import pandas as pd
 
-from lbi_app.viz.plots import category_bar_figure, companies_founded_over_time_figure
+from lbi_app.viz.plots import (
+    category_bar_figure,
+    clinical_stage_bar_figure,
+    companies_founded_over_time_figure,
+    geo_map_figure,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # match the format used by the pipeline/load step
@@ -36,6 +41,8 @@ def create_app() -> dash.Dash:
     df = load_snapshot()
     fig_categories = category_bar_figure(df, top_n=10)
     fig_founded_over_time = companies_founded_over_time_figure(df)
+    fig_clinical_stage = clinical_stage_bar_figure(df)
+    fig_geo = geo_map_figure(df)
 
     app = dash.Dash(
         __name__,
@@ -50,17 +57,21 @@ def create_app() -> dash.Dash:
             html.Img(
                 src="/assets/LBI_white_text_yellow_bulb.svg",
                 style={
-                    "maxWidth": "600px",
+                    "maxWidth": "800px",
                     "width": "100%",
                     "height": "auto",
+                    "display": "block",
                     "marginTop": "1rem",
                     "marginBottom": "1rem",
+                    "marginLeft": "auto",
+                    "marginRight": "auto",
                 },
             ),
             dcc.Markdown(
                 """
-                Longevity Biotech Insights is a dashboard showcasing information
-                about the aging/longevity biotech industry.
+                Longevity Biotech Insights showcases information about the
+                aging/longevity biotech industry based on data available at
+                [AgingBiotech.info/companies](https://agingbiotech.info/companies/).
                 """,
             ),
             dbc.Row(
@@ -95,6 +106,41 @@ def create_app() -> dash.Dash:
                         xs=12,
                         md=6,
                     )
+                ],
+                className="mt-3 g-3",
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        dbc.Card(
+                            dbc.CardBody(
+                                [
+                                    dcc.Graph(
+                                        id="clinical-stage-bar",
+                                        figure=fig_clinical_stage,
+                                        config={"displayModeBar": False},
+                                    ),
+                                ]
+                            ),
+                        ),
+                        xs=12,
+                        md=6,
+                    ),
+                    dbc.Col(
+                        dbc.Card(
+                            dbc.CardBody(
+                                [
+                                    dcc.Graph(
+                                        id="geo-map",
+                                        figure=fig_geo,
+                                        config={"displayModeBar": False},
+                                    ),
+                                ]
+                            ),
+                        ),
+                        xs=12,
+                        md=6,
+                    ),
                 ],
                 className="mt-3 g-3",
             ),
