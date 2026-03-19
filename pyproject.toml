@@ -24,6 +24,7 @@ dependencies = [
 [project.scripts]
 lbi = "lbi_app.app:main"
 lbi-update = "lbi_app.etl.pipeline:main"
+lbi-validate = "lbi_app.etl.validate:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
