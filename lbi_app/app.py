@@ -8,6 +8,7 @@ from importlib import metadata
 import dash
 import dash_bootstrap_components as dbc
 from dash import Input, Output, ctx, dcc, html, no_update
+from flask import Response
 import pandas as pd
 
 from lbi_app.viz.plots import (
@@ -167,6 +168,79 @@ def create_app() -> dash.Dash:
 
     app._favicon = "favicon.ico"
 
+    app.index_string = """
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        <meta name="description" content="Longevity Biotech Insights: interactive dashboard tracking 250+ aging and longevity biotech companies worldwide. Explore companies by founding year, research category (senescence, proteostasis, epigenetics, metabolism and more), clinical stage, and geography.">
+        <meta name="robots" content="index, follow">
+        <link rel="canonical" href="https://francescon-longevity-biotech-insights.hf.space/">
+        <meta property="og:type" content="website">
+        <meta property="og:title" content="Longevity Biotech Insights">
+        <meta property="og:description" content="Interactive dashboard tracking 250+ aging and longevity biotech companies worldwide by research category, clinical stage, and country.">
+        <meta property="og:url" content="https://francescon-longevity-biotech-insights.hf.space/">
+        <meta property="og:image" content="https://francescon-longevity-biotech-insights.hf.space/assets/favicon.png">
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="Longevity Biotech Insights">
+        <meta name="twitter:description" content="Interactive dashboard tracking 250+ aging and longevity biotech companies worldwide by research category, clinical stage, and country.">
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Dataset",
+          "name": "Longevity Biotech Insights",
+          "description": "A curated dataset and interactive dashboard of aging and longevity biotech companies worldwide, categorised by research focus, clinical stage and geography. Data sourced from AgingBiotech.info.",
+          "url": "https://francescon-longevity-biotech-insights.hf.space/",
+          "creator": {"@type": "Person", "name": "Francesco Neri", "url": "https://f-neri.github.io/"},
+          "isBasedOn": {"@type": "Dataset", "name": "AgingBiotech.info Companies", "url": "https://agingbiotech.info/companies/"},
+          "keywords": ["longevity", "aging", "biotech", "anti-aging", "senescence", "proteostasis", "epigenetics", "metabolism", "stem cells", "lifespan", "healthspan", "clinical stage", "drug development"]
+        }
+        </script>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>
+"""
+
+    @app.server.route("/robots.txt")
+    def robots_txt():
+        content = (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Sitemap: https://francescon-longevity-biotech-insights.hf.space/sitemap.xml\n"
+        )
+        return Response(content, mimetype="text/plain")
+
+    @app.server.route("/sitemap.xml")
+    def sitemap_xml():
+        content = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            '  <url>\n'
+            '    <loc>https://francescon-longevity-biotech-insights.hf.space/</loc>\n'
+            '    <changefreq>weekly</changefreq>\n'
+            '    <priority>1.0</priority>\n'
+            '  </url>\n'
+            '</urlset>\n'
+        )
+        return Response(content, mimetype="application/xml")
+
+    @app.server.route("/google7d669b47886d2e7c.html")
+    def google_site_verification():
+        return Response(
+            "google-site-verification: google7d669b47886d2e7c.html",
+            mimetype="text/html",
+        )
+
     app.layout = dbc.Container(
         [
             html.Img(
@@ -184,9 +258,15 @@ def create_app() -> dash.Dash:
             ),
             dcc.Markdown(
                 """
-                Longevity Biotech Insights showcases information about the
-                aging/longevity biotech industry based on data available at
-                [AgingBiotech.info/companies](https://agingbiotech.info/companies/).
+                **Longevity Biotech Insights** is an interactive dashboard tracking the global
+                aging/longevity biotechnology industry. It covers 250+ companies working
+                on extending healthy human lifespan.
+
+                Explore companies by the year they were founded, their primary research
+                category, current clinical development stage (pre-clinical through commercial),
+                and geographic location across more than 30 countries.
+                Click any chart to see a detailed company breakdown.
+                Data sourced from [AgingBiotech.info/companies](https://agingbiotech.info/companies/).
                 """,
             ),
             dbc.Row(

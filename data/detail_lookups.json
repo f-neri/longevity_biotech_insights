@@ -149,18 +149,18 @@
         "Location": "Brazil, Israel"
       },
       {
-        "Company": "MetroBiotech",
-        "Year Founded": "2014",
-        "Category": "Mitochondria",
-        "Clinical Stage": "Phase 2",
-        "Location": "Unknown"
-      },
-      {
         "Company": "Lineage Cell Therapeutics",
         "Year Founded": "1990",
         "Category": "Stem Cells",
         "Clinical Stage": "Phase 2",
         "Location": "United States"
+      },
+      {
+        "Company": "MetroBiotech",
+        "Year Founded": "2014",
+        "Category": "Mitochondria",
+        "Clinical Stage": "Phase 2",
+        "Location": "Unknown"
       },
       {
         "Company": "Neuraly",
@@ -2670,22 +2670,6 @@
         "Location": "United States"
       }
     ],
-    "2004": [
-      {
-        "Company": "Mesoblast",
-        "Year Founded": "2004",
-        "Category": "Stem Cells",
-        "Clinical Stage": "Commercial",
-        "Location": "Australia, United States"
-      },
-      {
-        "Company": "Brainstorm Cell Therapeutics",
-        "Year Founded": "2004",
-        "Category": "Stem Cells",
-        "Clinical Stage": "Phase 3",
-        "Location": "Israel"
-      }
-    ],
     "2012": [
       {
         "Company": "Scholar Rock",
@@ -2756,6 +2740,22 @@
         "Category": "Stem Cells, Signals",
         "Clinical Stage": "N/A",
         "Location": "United States"
+      }
+    ],
+    "2004": [
+      {
+        "Company": "Mesoblast",
+        "Year Founded": "2004",
+        "Category": "Stem Cells",
+        "Clinical Stage": "Commercial",
+        "Location": "Australia, United States"
+      },
+      {
+        "Company": "Brainstorm Cell Therapeutics",
+        "Year Founded": "2004",
+        "Category": "Stem Cells",
+        "Clinical Stage": "Phase 3",
+        "Location": "Israel"
       }
     ],
     "2018": [
@@ -6129,17 +6129,17 @@
         "Location": "United States"
       },
       {
-        "Company": "Mesoblast",
-        "Year Founded": "2004",
-        "Category": "Stem Cells",
-        "Clinical Stage": "Commercial",
-        "Location": "United States"
-      },
-      {
         "Company": "Scholar Rock",
         "Year Founded": "2012",
         "Category": "Metabolism, Inflammation, Cancer",
         "Clinical Stage": "Phase 3",
+        "Location": "United States"
+      },
+      {
+        "Company": "Mesoblast",
+        "Year Founded": "2004",
+        "Category": "Stem Cells",
+        "Clinical Stage": "Commercial",
         "Location": "United States"
       },
       {
