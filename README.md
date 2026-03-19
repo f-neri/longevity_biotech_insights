@@ -49,6 +49,20 @@ The repository includes a GitHub Actions workflow at `.github/workflows/weekly-d
 	- `data/companies_clean.parquet`
 	- `data/detail_lookups.json`
 
+### Hugging Face deployment mirror
+
+This workflow pushes updated data to both GitHub and your Hugging Face Space.
+When data changes, Hugging Face configuration is required and the run fails if anything is missing.
+
+Configure the following in GitHub repository settings:
+
+- Repository variable `HF_USERNAME`: your Hugging Face username
+- Repository secret `HF_TOKEN`: a Hugging Face User Access Token with write access
+- Repository variable `HF_SPACE_REPO`: Space repo path in the form `owner/space-name`
+
+The workflow pushes to:
+`https://huggingface.co/spaces/<owner>/<space-name>`
+
 ### Manual refresh locally
 
 ```bash
