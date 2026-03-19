@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from importlib import metadata
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import dcc, html
+from dash import Input, Output, ctx, dcc, html, no_update
 import pandas as pd
 
 from lbi_app.viz.plots import (
@@ -19,6 +20,7 @@ from lbi_app.viz.plots import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # match the format used by the pipeline/load step
 CLEAN_PATH = REPO_ROOT / "data" / "companies_clean.parquet"
+DETAIL_LOOKUPS_PATH = REPO_ROOT / "data" / "detail_lookups.json"
 
 
 def load_snapshot() -> pd.DataFrame:
@@ -26,6 +28,98 @@ def load_snapshot() -> pd.DataFrame:
     Load the latest cleaned snapshot used by the dashboard.
     """
     return pd.read_parquet(CLEAN_PATH)
+
+
+def load_detail_lookups() -> dict[str, dict[str, list[dict[str, str]]]]:
+    """
+    Load precomputed detail lookups (stage, year, category, country).
+    These are computed during the ETL pipeline and cached here.
+    """
+    if not DETAIL_LOOKUPS_PATH.exists():
+        raise FileNotFoundError(
+            f"Detail lookups not found at {DETAIL_LOOKUPS_PATH}. "
+            "Run 'lbi-update' to generate them via the ETL pipeline."
+        )
+    with open(DETAIL_LOOKUPS_PATH) as f:
+        return json.load(f)
+
+
+def _format_year_founded(value: object) -> str:
+    if pd.isna(value):
+        return "N/A"
+
+    timestamp = pd.to_datetime(value, errors="coerce")
+    if pd.notna(timestamp):
+        return str(timestamp.year)
+
+    return str(value)
+
+
+def _format_list_cell(value: object) -> str:
+    if isinstance(value, (list, tuple, set)):
+        items = [str(item).strip() for item in value if pd.notna(item) and str(item).strip()]
+        return ", ".join(items) if items else "N/A"
+
+    if hasattr(value, "tolist") and not isinstance(value, (str, bytes)):
+        converted = value.tolist()
+        if isinstance(converted, list):
+            items = [str(item).strip() for item in converted if pd.notna(item) and str(item).strip()]
+            return ", ".join(items) if items else "N/A"
+
+    if pd.isna(value):
+        return "N/A"
+
+    text = str(value).strip()
+    return text or "N/A"
+
+
+def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
+    header_cells = [
+        html.Th(
+            label,
+            style={
+                "position": "sticky",
+                "top": 0,
+                "backgroundColor": "#1a1a1a",
+                "padding": "0.4rem 0.6rem",
+                "textAlign": "left",
+                "borderBottom": "1px solid #444444",
+                "whiteSpace": "nowrap",
+            },
+        )
+        for label in ["Company", "Year Founded", "Category", "Clinical Stage", "Geo"]
+    ]
+
+    body_rows = [
+        html.Tr(
+            [
+                html.Td(row["Company"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
+                html.Td(row["Year Founded"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
+                html.Td(row["Category"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
+                html.Td(row["Clinical Stage"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
+                html.Td(row["Geo"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
+            ]
+        )
+        for row in rows
+    ]
+
+    return [
+        dbc.ModalHeader(dbc.ModalTitle(title)),
+        dbc.ModalBody(
+            html.Div(
+                html.Table(
+                    [html.Thead(html.Tr(header_cells)), html.Tbody(body_rows)],
+                    style={
+                        "width": "100%",
+                        "borderCollapse": "collapse",
+                        "fontSize": "0.9rem",
+                    },
+                ),
+                style={"overflowX": "auto"},
+            ),
+            style={"maxHeight": "65vh", "overflowY": "auto"},
+        ),
+    ]
 
 def get_app_version() -> str:
     try:
@@ -39,6 +133,11 @@ version = get_app_version()
 def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
     df = load_snapshot()
+    lookups = load_detail_lookups()
+    stage_details = lookups["stage_details"]
+    year_details = lookups["year_details"]
+    category_details = lookups["category_details"]
+    country_details = lookups["country_details"]
     fig_categories = category_polar_bar_figure(df, top_n=10)
     fig_founded_over_time = companies_founded_over_time_figure(df)
     fig_clinical_stage = clinical_stage_bar_figure(df)
@@ -144,6 +243,13 @@ def create_app() -> dash.Dash:
                 ],
                 className="mt-3 g-3",
             ),
+            dbc.Modal(
+                id="detail-modal",
+                is_open=False,
+                size="xl",
+                scrollable=True,
+                children=[],
+            ),
             html.Footer(
                 dbc.Container(
                     [
@@ -162,6 +268,70 @@ def create_app() -> dash.Dash:
         fluid=True,
         className="pb-4",
     )
+
+    @app.callback(
+        Output("detail-modal", "is_open"),
+        Output("detail-modal", "children"),
+        Output("clinical-stage-bar", "clickData"),
+        Output("founded-over-time", "clickData"),
+        Output("category-bar", "clickData"),
+        Output("geo-map", "clickData"),
+        Input("clinical-stage-bar", "clickData"),
+        Input("founded-over-time", "clickData"),
+        Input("category-bar", "clickData"),
+        Input("geo-map", "clickData"),
+        prevent_initial_call=True,
+    )
+    def handle_chart_click(stage_click, time_click, cat_click, geo_click):
+        triggered = ctx.triggered_id
+        no_changes = (False, no_update, no_update, no_update, no_update, no_update)
+
+        click_data_map = {
+            "clinical-stage-bar": stage_click,
+            "founded-over-time": time_click,
+            "category-bar": cat_click,
+            "geo-map": geo_click,
+        }
+        click_data = click_data_map.get(triggered)
+        if not click_data or not click_data.get("points"):
+            return no_changes
+
+        point = click_data["points"][0]
+
+        if triggered == "clinical-stage-bar":
+            key = str(point.get("x", "")).strip()
+            rows = stage_details.get(key)
+        elif triggered == "founded-over-time":
+            if point.get("curveNumber") != 1:  # ignore cumulative line, only bar (New)
+                return no_changes
+            key = str(int(float(point.get("x", 0))))
+            rows = year_details.get(key)
+        elif triggered == "category-bar":
+            key = str(point.get("theta", "")).strip()
+            rows = category_details.get(key)
+        elif triggered == "geo-map":
+            key = str(point.get("location", "")).strip()
+            rows = country_details.get(key)
+        else:
+            return no_changes
+
+        if not key or not rows:
+            return no_changes
+
+        resets = dict.fromkeys(
+            ["clinical-stage-bar", "founded-over-time", "category-bar", "geo-map"],
+            no_update,
+        )
+        resets[triggered] = None
+
+        return (
+            True,
+            build_detail_modal_body(f"{key} \u2014 {len(rows)} companies", rows),
+            resets["clinical-stage-bar"],
+            resets["founded-over-time"],
+            resets["category-bar"],
+            resets["geo-map"],
+        )
 
     return app
 

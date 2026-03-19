@@ -353,26 +353,20 @@ def clinical_stage_bar_figure(df: pd.DataFrame) -> go.Figure:
 
 def geo_country_counts(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Aggregate geo_clean into country-level counts for the choropleth map.
-    US state entries ("United States - {State}") are collapsed to
-    "United States", with a per-state breakdown stored for hover text.
+    Aggregate geo_country into country-level counts for the choropleth map.
     """
     if "Company" not in df.columns:
         raise KeyError("Column not found: Company")
-    if "geo_clean" not in df.columns:
-        raise KeyError("Column not found: geo_clean")
+    if "geo_country" not in df.columns:
+        raise KeyError("Column not found: geo_country")
     if "full overall score" not in df.columns:
         raise KeyError("Column not found: full overall score")
 
     sorted_df = df.copy().sort_values("full overall score", ascending=False)
 
-    sorted_df = sorted_df.explode("geo_clean").dropna(subset=["geo_clean"])
+    sorted_df = sorted_df.explode("geo_country").dropna(subset=["geo_country"])
 
-    sorted_df["_country"] = sorted_df["geo_clean"].apply(
-        lambda x: "United States" if str(x).startswith("United States - ") else str(x)
-    )
-
-    sorted_df = sorted_df.drop_duplicates(subset=["Company", "_country"], keep="first")
+    sorted_df = sorted_df.drop_duplicates(subset=["Company", "geo_country"], keep="first")
 
     def _top_companies(names: pd.Series) -> str:
         lst = [str(n) for n in names.dropna().tolist()]
@@ -381,18 +375,17 @@ def geo_country_counts(df: pd.DataFrame) -> pd.DataFrame:
         return "- " + "<br>- ".join(lst)
 
     agg = (
-        sorted_df[sorted_df["_country"] != "Unknown"]
-        .groupby("_country", as_index=False, sort=False)
+        sorted_df[sorted_df["geo_country"] != "Unknown"]
+        .groupby("geo_country", as_index=False, sort=False)
         .agg(
             n_companies=("Company", "count"),
             company_list=("Company", _top_companies),
         )
         .sort_values("n_companies", ascending=False)
-        .rename(columns={"_country": "country"})
     )
 
     def _hover(row: pd.Series) -> str:
-        country_label = row["country"]
+        country_label = row["geo_country"]
         lines = [f"<b>{country_label}</b>: {row['n_companies']} " + ("company" if row["n_companies"] == 1 else "companies")]
         lines.append(f"<br>{row['company_list']}")
         return "<br>".join(lines)
@@ -408,7 +401,7 @@ def geo_map_figure(df: pd.DataFrame) -> go.Figure:
     # Log scaling improves contrast for long-tail country counts (e.g., 176 vs 3).
     counts["z_color"] = counts["n_companies"].astype(float).map(math.log1p)
 
-    preferred_cols = [c for c in ["Company", "country", "n_companies", "z_color"] if c in counts.columns]
+    preferred_cols = [c for c in ["Company", "geo_country", "n_companies", "z_color"] if c in counts.columns]
     remaining_cols = [c for c in counts.columns if c not in preferred_cols]
     counts = counts[preferred_cols + remaining_cols]
 
@@ -438,7 +431,7 @@ def geo_map_figure(df: pd.DataFrame) -> go.Figure:
 
     fig = go.Figure(
         go.Choropleth(
-            locations=counts["country"],
+            locations=counts["geo_country"],
             locationmode="country names",
             z=counts["z_color"],
             zmin=0,

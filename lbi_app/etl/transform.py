@@ -224,6 +224,27 @@ def clean_geo(s: pd.Series) -> pd.Series:
     return s.apply(_parse)
 
 
+def derive_geo_country(s: pd.Series) -> pd.Series:
+    """
+    Collapse US state entries in geo_clean lists to their top-level country.
+
+    "United States - {State}" -> "United States", all other entries kept as-is.
+    Deduplicates within each list so a company with multiple US states
+    appears as a single "United States" entry.
+    """
+    def _collapse(locations: object) -> list[str]:
+        if not isinstance(locations, list):
+            return ["Unknown"]
+        seen: list[str] = []
+        for loc in locations:
+            country = "United States" if str(loc).startswith("United States - ") else str(loc)
+            if country not in seen:
+                seen.append(country)
+        return sorted(seen) if seen else ["Unknown"]
+
+    return s.apply(_collapse)
+
+
 def clean_string_series(s: pd.Series) -> pd.Series:
     """
     Standard string normalization used across the pipeline.
@@ -575,7 +596,8 @@ def transform_companies(
     # 4c) Parse geo column into canonical country / US-state locations
     if "geo" in df.columns:
         df["geo_clean"] = clean_geo(df["geo"])
-        logger.info("Parsed geo column into canonical locations.")
+        df["geo_country"] = derive_geo_country(df["geo_clean"])
+        logger.info("Parsed geo column into canonical locations and derived geo_country.")
 
         # Global plural normalization: if both "X" and "Xs" appear anywhere in the dataset,
         # replace all "Xs" with "X"
