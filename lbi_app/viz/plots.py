@@ -186,7 +186,7 @@ def category_polar_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
                 line=dict(color=CYBORG["bg"], width=1.2),
             ),
             hovertemplate=(
-                "<b>%{theta}</b><br>(%{r} Companies)<br><br>"
+                "<b>%{theta}</b><br>%{r} Companies<br><br>"
                 "%{customdata}<extra></extra>"
             ),
         )
@@ -316,10 +316,24 @@ def clinical_stage_bar_figure(df: pd.DataFrame) -> go.Figure:
     if "latest clinical stage" not in df.columns:
         raise KeyError("Column not found: latest clinical stage")
 
+    def _top_companies(names: pd.Series) -> str:
+        lst = [str(n) for n in names.dropna().tolist()]
+        if len(lst) > 5:
+            return "- " + "<br>- ".join(lst[:5]) + "<br>..."
+        return "- " + "<br>- ".join(lst)
+
+    stage_df = df.dropna(subset=["latest clinical stage", "Company"]).copy()
+    if "full overall score" in stage_df.columns:
+        stage_df = stage_df.sort_values(
+            ["latest clinical stage", "full overall score"], ascending=[True, False]
+        )
+
     counts = (
-        df.dropna(subset=["latest clinical stage", "Company"])
-        .groupby("latest clinical stage", as_index=False, observed=True)
-        .agg(n_companies=("Company", "count"))
+        stage_df.groupby("latest clinical stage", as_index=False, observed=True)
+        .agg(
+            n_companies=("Company", "count"),
+            company_list=("Company", _top_companies),
+        )
     )
 
     fig = go.Figure()
@@ -328,7 +342,11 @@ def clinical_stage_bar_figure(df: pd.DataFrame) -> go.Figure:
         go.Bar(
             x=counts["latest clinical stage"],
             y=counts["n_companies"],
-            hovertemplate="<b>%{x}</b><br>(%{y} Companies)<extra></extra>",
+            customdata=counts["company_list"],
+            hovertemplate=(
+                "<b>%{x}</b><br>%{y} Companies<br><br>"
+                "%{customdata}<extra></extra>"
+            ),
         )
     )
 
@@ -386,8 +404,11 @@ def geo_country_counts(df: pd.DataFrame) -> pd.DataFrame:
 
     def _hover(row: pd.Series) -> str:
         country_label = row["geo_country"]
-        lines = [f"<b>{country_label}</b>: {row['n_companies']} " + ("company" if row["n_companies"] == 1 else "companies")]
-        lines.append(f"<br>{row['company_list']}")
+        company_label = "company" if row["n_companies"] == 1 else "companies"
+        lines = [
+            f"<b>{country_label}</b>",
+            f"{row['n_companies']} {company_label}<br><br>{row['company_list']}",
+        ]
         return "<br>".join(lines)
 
     agg["hover_text"] = agg.apply(_hover, axis=1)

@@ -98,7 +98,7 @@ def _format_rows(df: pd.DataFrame) -> list[dict[str, str]]:
             "Year Founded": year,
             "Category": cat,
             "Clinical Stage": stage,
-            "Geo": geo,
+            "Location": geo,
         })
     return records
 

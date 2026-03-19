@@ -87,7 +87,7 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
                 "whiteSpace": "nowrap",
             },
         )
-        for label in ["Company", "Year Founded", "Category", "Clinical Stage", "Geo"]
+        for label in ["Company", "Year Founded", "Category", "Clinical Stage", "Location"]
     ]
 
     body_rows = [
@@ -97,7 +97,7 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
                 html.Td(row["Year Founded"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
                 html.Td(row["Category"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
                 html.Td(row["Clinical Stage"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
-                html.Td(row["Geo"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
+                html.Td(row["Location"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
             ]
         )
         for row in rows
@@ -111,15 +111,31 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
                     [html.Thead(html.Tr(header_cells)), html.Tbody(body_rows)],
                     style={
                         "width": "100%",
-                        "borderCollapse": "collapse",
+                        "borderCollapse": "separate",
+                        "borderSpacing": 0,
                         "fontSize": "0.9rem",
                     },
                 ),
-                style={"overflowX": "auto"},
+                style={"overflowX": "auto", "overflowY": "auto", "maxHeight": "65vh"},
             ),
-            style={"maxHeight": "65vh", "overflowY": "auto"},
         ),
     ]
+
+
+def format_detail_modal_title(filter_label: str, selected_value: str, count: int) -> str:
+    company_label = "company" if count == 1 else "companies"
+    return f"{filter_label}: {selected_value} ({count} {company_label})"
+
+
+def get_trace_name(fig: object, curve_number: object) -> str | None:
+    if not isinstance(curve_number, int):
+        return None
+
+    data = getattr(fig, "data", None)
+    if data is None or curve_number < 0 or curve_number >= len(data):
+        return None
+
+    return getattr(data[curve_number], "name", None)
 
 def get_app_version() -> str:
     try:
@@ -285,6 +301,12 @@ def create_app() -> dash.Dash:
     def handle_chart_click(stage_click, time_click, cat_click, geo_click):
         triggered = ctx.triggered_id
         no_changes = (False, no_update, no_update, no_update, no_update, no_update)
+        filter_labels = {
+            "clinical-stage-bar": "Clinical Stage",
+            "founded-over-time": "Year Founded",
+            "category-bar": "Category",
+            "geo-map": "Location",
+        }
 
         click_data_map = {
             "clinical-stage-bar": stage_click,
@@ -302,7 +324,8 @@ def create_app() -> dash.Dash:
             key = str(point.get("x", "")).strip()
             rows = stage_details.get(key)
         elif triggered == "founded-over-time":
-            if point.get("curveNumber") != 1:  # ignore cumulative line, only bar (New)
+            trace_name = get_trace_name(fig_founded_over_time, point.get("curveNumber"))
+            if trace_name != "New":
                 return no_changes
             key = str(int(float(point.get("x", 0))))
             rows = year_details.get(key)
@@ -326,7 +349,10 @@ def create_app() -> dash.Dash:
 
         return (
             True,
-            build_detail_modal_body(f"{key} \u2014 {len(rows)} companies", rows),
+            build_detail_modal_body(
+                format_detail_modal_title(filter_labels[triggered], key, len(rows)),
+                rows,
+            ),
             resets["clinical-stage-bar"],
             resets["founded-over-time"],
             resets["category-bar"],
