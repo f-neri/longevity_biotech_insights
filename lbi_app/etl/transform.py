@@ -346,35 +346,35 @@ def clean_categories(s: pd.Series) -> pd.Series:
         
         "clock" and "clocks" -> ["clock"]
     """
+    def _normalize_token(token: str) -> str:
+        """Strip subcategory suffix, trailing connectives, and annotation chars."""
+        # 1. Remove subcategory suffix (everything from " / " onward)
+        token = token.split("/")[0].strip()
+
+        # 2. Strip trailing logical connectives
+        words = token.split()
+        while words and words[-1].lower() in ("and", "or", "and/or"):
+            words.pop()
+        token = " ".join(words)
+
+        # 3. Strip trailing annotation punctuation (*, ?, !, ., ,, ;, :)
+        token = re.sub(r"[*?!.,;:]+$", "", token).strip()
+
+        return token.title()
+
     def process_category_string(cat_str):
         if pd.isna(cat_str):
             return None
-        
+
         # Split by comma to get individual categories
         categories = str(cat_str).split(",")
-        
-        # For each category, keep only the main part (before " / ") and strip annotations
+
         cleaned: list[str] = []
         for cat in categories:
-            # Extract main category (before " / " if present)
-            main_cat = cat.split("/")[0].strip()
-            
-            # Strip trailing annotation characters (*, ?, comma, etc)
-            main_cat = main_cat.rstrip("*?,")
-            
-            # Strip trailing logical connectives and preserve single words
-            main_cat = main_cat.rstrip()
-            words = main_cat.split()
-            while words and words[-1].lower() in ("and", "or", "and/or"):
-                words.pop()
-            main_cat = " ".join(words)
-            
-            # Capitalize each word
-            main_cat = main_cat.title()
-            
-            if main_cat:  # only add non-empty
+            main_cat = _normalize_token(cat)
+            if main_cat:
                 cleaned.append(main_cat)
-        
+
         # Return as list (or None if empty)
         return cleaned if cleaned else None
     
