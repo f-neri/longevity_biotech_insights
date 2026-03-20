@@ -21,6 +21,11 @@ dependencies = [
   "gunicorn>=21.2",
 ]
 
+[project.optional-dependencies]
+optional = [
+  "pytest>=8.0",
+]
+
 [project.scripts]
 lbi = "lbi_app.app:main"
 lbi-update = "lbi_app.etl.pipeline:main"
@@ -29,3 +34,6 @@ lbi-validate = "lbi_app.etl.validate:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["lbi_app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

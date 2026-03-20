@@ -29,6 +29,17 @@ conda activate lbi
 ```bash
 pip install -e .
 ```
+
+### 3b. Install all optional dependencies
+```bash
+pip install -e ".[optional]"
+```
+
+### 3c. Run tests
+```bash
+pytest -q
+```
+
 ### 4. Run the dashboard
 ```bash
 lbi
