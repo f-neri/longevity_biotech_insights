@@ -743,7 +743,7 @@ def create_app() -> dash.Dash:
             )
         if triggered == "filter-reset-btn":
             return (
-                True,
+                False,
                 companies_founded_over_time_figure(df),
                 category_polar_bar_figure(df, top_n=10),
                 clinical_stage_bar_figure(df),
