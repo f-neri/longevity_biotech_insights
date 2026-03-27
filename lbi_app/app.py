@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 from importlib import metadata
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, ctx, dcc, html, no_update
+from dash import Input, Output, State, ctx, dcc, html, no_update
 from flask import Response
 import pandas as pd
 
@@ -21,7 +20,6 @@ from lbi_app.viz.plots import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # match the format used by the pipeline/load step
 CLEAN_PATH = REPO_ROOT / "data" / "companies_clean.parquet"
-DETAIL_LOOKUPS_PATH = REPO_ROOT / "data" / "detail_lookups.json"
 
 
 def load_snapshot() -> pd.DataFrame:
@@ -29,20 +27,6 @@ def load_snapshot() -> pd.DataFrame:
     Load the latest cleaned snapshot used by the dashboard.
     """
     return pd.read_parquet(CLEAN_PATH)
-
-
-def load_detail_lookups() -> dict[str, dict[str, list[dict[str, str]]]]:
-    """
-    Load precomputed detail lookups (stage, year, category, country).
-    These are computed during the ETL pipeline and cached here.
-    """
-    if not DETAIL_LOOKUPS_PATH.exists():
-        raise FileNotFoundError(
-            f"Detail lookups not found at {DETAIL_LOOKUPS_PATH}. "
-            "Run 'lbi-update' to generate them via the ETL pipeline."
-        )
-    with open(DETAIL_LOOKUPS_PATH) as f:
-        return json.load(f)
 
 
 def _format_year_founded(value: object) -> str:
@@ -75,6 +59,14 @@ def _format_list_cell(value: object) -> str:
 
 
 def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
+    def _display_location(value: object) -> str:
+        text = str(value).strip() if value is not None else ""
+        if not text:
+            return "N/A"
+        parts = [part.strip() for part in text.split(",")]
+        normalized = ["N/A" if part == "Unknown" else part for part in parts if part]
+        return ", ".join(normalized) if normalized else "N/A"
+
     header_cells = [
         html.Th(
             label,
@@ -98,7 +90,7 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
                 html.Td(row["Year Founded"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
                 html.Td(row["Category"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
                 html.Td(row["Clinical Stage"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
-                html.Td(row["Location"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
+                html.Td(_display_location(row.get("Location")), style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
             ]
         )
         for row in rows
@@ -128,6 +120,33 @@ def format_detail_modal_title(filter_label: str, selected_value: str, count: int
     return f"{filter_label}: {selected_value} ({count} {company_label})"
 
 
+def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, str]]:
+    """Format filtered company rows for the detail modal table."""
+    if df_subset.empty:
+        return []
+
+    ordered = df_subset.copy()
+    if "full overall score" in ordered.columns:
+        ordered = ordered.sort_values("full overall score", ascending=False)
+
+    rows: list[dict[str, str]] = []
+    for _, row in ordered.iterrows():
+        stage_val = row.get("latest clinical stage")
+        stage_text = "N/A" if pd.isna(stage_val) else str(stage_val).strip() or "N/A"
+
+        rows.append(
+            {
+                "Company": str(row.get("Company", "N/A")).strip() or "N/A",
+                "Year Founded": _format_year_founded(row.get("year founded")),
+                "Category": _format_list_cell(row.get("categories")),
+                "Clinical Stage": stage_text,
+                "Location": _format_list_cell(row.get("geo_country")),
+            }
+        )
+
+    return rows
+
+
 def get_trace_name(fig: object, curve_number: object) -> str | None:
     if not isinstance(curve_number, int):
         return None
@@ -147,18 +166,99 @@ def get_app_version() -> str:
     
 version = get_app_version()
 
+FILTER_YEAR_MIN = 2000
+
+
+def _as_items(value: object) -> list[str]:
+    """Normalize scalar/list-like cell values into a clean string list."""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(v).strip() for v in value if pd.notna(v) and str(v).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if hasattr(value, "tolist") and not isinstance(value, (bytes, bytearray)):
+        converted = value.tolist()
+        if isinstance(converted, list):
+            return [str(v).strip() for v in converted if pd.notna(v) and str(v).strip()]
+        if pd.notna(converted):
+            text = str(converted).strip()
+            return [text] if text else []
+        return []
+    if pd.isna(value):
+        return []
+    text = str(value).strip()
+    return [text] if text else []
+
+
+def _apply_df_filters(
+    df: pd.DataFrame,
+    year_range: list[int],
+    categories: list[str] | None,
+    stages: list[str] | None,
+    countries: list[str] | None,
+) -> pd.DataFrame:
+    """Return a filtered copy of df based on dashboard filter selections."""
+
+    mask = pd.Series(True, index=df.index)
+    years = pd.to_datetime(df["year founded"], errors="coerce").dt.year
+    # Apply year filtering only when user narrows the slider.
+    # At full default span, keep all rows (including unknown/current-year values).
+    full_default_year_span = (
+        year_range[0] <= FILTER_YEAR_MIN
+        and year_range[1] >= (pd.Timestamp.today().year - 1)
+    )
+    if not full_default_year_span:
+        mask &= (years >= year_range[0]) & (years <= year_range[1])
+    if categories:
+        def _has_cat(cats: object) -> bool:
+            return any(c in categories for c in _as_items(cats))
+        mask &= df["categories"].apply(_has_cat)
+    if stages:
+        mask &= df["latest clinical stage"].isin(stages)
+    if countries:
+        def _has_country(geo_list: object) -> bool:
+            return any(
+                (entry.split(" - ")[0] if " - " in entry else entry) in countries
+                for entry in _as_items(geo_list)
+                if entry != "Unknown"
+            )
+        mask &= df["geo_country"].apply(_has_country)
+    return df[mask]
+
+
 def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
     df = load_snapshot()
-    lookups = load_detail_lookups()
-    stage_details = lookups["stage_details"]
-    year_details = lookups["year_details"]
-    category_details = lookups["category_details"]
-    country_details = lookups["country_details"]
     fig_categories = category_polar_bar_figure(df, top_n=10)
     fig_founded_over_time = companies_founded_over_time_figure(df)
     fig_clinical_stage = clinical_stage_bar_figure(df)
     fig_geo = geo_map_figure(df)
+
+    # --- Filter options ------------------------------------------------------
+    filter_year_max = pd.Timestamp.today().year - 1
+    all_categories = sorted(
+        cat
+        for cat in df["categories"].explode().dropna().unique()
+        if isinstance(cat, str)
+    )
+    _stage_order = [
+        "Pre-Clinical", "Phase 1", "Phase 2", "Phase 3", "Pre-Commercial", "Commercial",
+    ]
+    _present_stages = set(df["latest clinical stage"].dropna().astype(str).unique())
+    all_stages = [s for s in _stage_order if s in _present_stages]
+    all_countries = sorted(
+        c
+        for c in (
+            df["geo_country"].explode().dropna()
+            .apply(lambda x: x.split(" - ")[0] if isinstance(x, str) else None)
+            .dropna()
+            .unique()
+        )
+        if c != "Unknown"
+    )
+    # -------------------------------------------------------------------------
 
     app = dash.Dash(
         __name__,
@@ -265,9 +365,24 @@ def create_app() -> dash.Dash:
                 Explore companies by the year they were founded, their primary research
                 category, current clinical development stage (pre-clinical through commercial),
                 and geographic location across more than 30 countries.
+                Use the Filter button to refine the dashboard by year founded range, category,
+                clinical stage, or country.
                 Click any chart to see a detailed company breakdown.
                 Data sourced from [AgingBiotech.info/companies](https://agingbiotech.info/companies/).
                 """,
+            ),
+            dbc.Row(
+                dbc.Col(
+                    dbc.Button(
+                        "Filter Charts",
+                        id="filter-open-btn",
+                        color="primary",
+                        size="md",
+                        className="filter-launch-btn",
+                    ),
+                    className="d-flex justify-content-center",
+                ),
+                className="filter-launch-row",
             ),
             dbc.Row(
                 [
@@ -340,6 +455,69 @@ def create_app() -> dash.Dash:
                 className="mt-3 g-3",
             ),
             dbc.Modal(
+                id="filter-modal",
+                is_open=False,
+                size="lg",
+                children=[
+                    dbc.ModalHeader(dbc.ModalTitle("Filter Charts")),
+                    dbc.ModalBody(
+                        [
+                            dbc.Label("Year Founded"),
+                            dcc.RangeSlider(
+                                id="filter-year-range",
+                                min=FILTER_YEAR_MIN,
+                                max=filter_year_max,
+                                step=1,
+                                value=[FILTER_YEAR_MIN, filter_year_max],
+                                marks={
+                                    y: str(y)
+                                    for y in range(FILTER_YEAR_MIN, filter_year_max + 1, 5)
+                                },
+                                tooltip={"placement": "bottom", "always_visible": True},
+                                className="mb-4",
+                            ),
+                            dbc.Label("Category", className="mt-2"),
+                            dcc.Dropdown(
+                                id="filter-category",
+                                options=[{"label": c, "value": c} for c in all_categories],
+                                multi=True,
+                                placeholder="All categories",
+                                className="mb-3",
+                            ),
+                            dbc.Label("Clinical Stage", className="mt-2"),
+                            dcc.Dropdown(
+                                id="filter-stage",
+                                options=[{"label": s, "value": s} for s in all_stages],
+                                multi=True,
+                                placeholder="All stages",
+                                className="mb-3",
+                            ),
+                            dbc.Label("Country", className="mt-2"),
+                            dcc.Dropdown(
+                                id="filter-country",
+                                options=[{"label": c, "value": c} for c in all_countries],
+                                multi=True,
+                                placeholder="All countries",
+                                className="mb-3",
+                            ),
+                        ],
+                        className="filter-modal-body",
+                    ),
+                    dbc.ModalFooter(
+                        [
+                            dbc.Button(
+                                "Reset",
+                                id="filter-reset-btn",
+                                color="secondary",
+                                outline=True,
+                                className="me-auto filter-reset-btn",
+                            ),
+                            dbc.Button("Apply", id="filter-apply-btn", color="primary"),
+                        ]
+                    ),
+                ],
+            ),
+            dbc.Modal(
                 id="detail-modal",
                 is_open=False,
                 size="xl",
@@ -376,9 +554,22 @@ def create_app() -> dash.Dash:
         Input("founded-over-time", "clickData"),
         Input("category-bar", "clickData"),
         Input("geo-map", "clickData"),
+        State("filter-year-range", "value"),
+        State("filter-category", "value"),
+        State("filter-stage", "value"),
+        State("filter-country", "value"),
         prevent_initial_call=True,
     )
-    def handle_chart_click(stage_click, time_click, cat_click, geo_click):
+    def handle_chart_click(
+        stage_click,
+        time_click,
+        cat_click,
+        geo_click,
+        year_range,
+        sel_cats,
+        sel_stages,
+        sel_countries,
+    ):
         triggered = ctx.triggered_id
         no_changes = (False, no_update, no_update, no_update, no_update, no_update)
         filter_labels = {
@@ -398,25 +589,42 @@ def create_app() -> dash.Dash:
         if not click_data or not click_data.get("points"):
             return no_changes
 
+        safe_year = year_range if year_range else [FILTER_YEAR_MIN, filter_year_max]
+        filtered_df = _apply_df_filters(df, safe_year, sel_cats, sel_stages, sel_countries)
+
         point = click_data["points"][0]
 
         if triggered == "clinical-stage-bar":
             key = str(point.get("x", "")).strip()
-            rows = stage_details.get(key)
+            stage_series = filtered_df["latest clinical stage"].astype("string").str.strip()
+            rows_df = filtered_df[stage_series == key]
         elif triggered == "founded-over-time":
-            trace_name = get_trace_name(fig_founded_over_time, point.get("curveNumber"))
-            if trace_name != "New":
+            if point.get("curveNumber") != 1:
                 return no_changes
-            key = str(int(float(point.get("x", 0))))
-            rows = year_details.get(key)
+            try:
+                year_int = int(float(point.get("x", 0)))
+            except (TypeError, ValueError):
+                return no_changes
+            key = str(year_int)
+            founded_years = pd.to_datetime(filtered_df["year founded"], errors="coerce").dt.year
+            rows_df = filtered_df[founded_years == year_int]
         elif triggered == "category-bar":
             key = str(point.get("theta", "")).strip()
-            rows = category_details.get(key)
+            rows_df = filtered_df[filtered_df["categories"].apply(lambda cats: key in _as_items(cats))]
         elif triggered == "geo-map":
             key = str(point.get("location", "")).strip()
-            rows = country_details.get(key)
+            def _has_country_key(geo_list: object) -> bool:
+                return any(
+                    (entry.split(" - ")[0] if " - " in entry else entry) == key
+                    for entry in _as_items(geo_list)
+                    if entry != "Unknown"
+                )
+
+            rows_df = filtered_df[filtered_df["geo_country"].apply(_has_country_key)]
         else:
             return no_changes
+
+        rows = _build_detail_rows(rows_df)
 
         if not key or not rows:
             return no_changes
@@ -438,6 +646,80 @@ def create_app() -> dash.Dash:
             resets["category-bar"],
             resets["geo-map"],
         )
+
+    @app.callback(
+        Output("filter-modal", "is_open"),
+        Output("founded-over-time", "figure"),
+        Output("category-bar", "figure"),
+        Output("clinical-stage-bar", "figure"),
+        Output("geo-map", "figure"),
+        Output("filter-year-range", "value"),
+        Output("filter-category", "value"),
+        Output("filter-stage", "value"),
+        Output("filter-country", "value"),
+        Input("filter-open-btn", "n_clicks"),
+        Input("filter-apply-btn", "n_clicks"),
+        Input("filter-reset-btn", "n_clicks"),
+        State("filter-year-range", "value"),
+        State("filter-category", "value"),
+        State("filter-stage", "value"),
+        State("filter-country", "value"),
+        prevent_initial_call=True,
+    )
+    def handle_filter_modal(
+        open_clicks, apply_clicks, reset_clicks,
+        year_range, sel_cats, sel_stages, sel_countries,
+    ):
+        triggered = ctx.triggered_id
+        _no = no_update
+        if triggered == "filter-open-btn":
+            return (True, _no, _no, _no, _no, _no, _no, _no, _no)
+        safe_year = year_range if year_range else [FILTER_YEAR_MIN, filter_year_max]
+        if triggered == "filter-apply-btn":
+            filtered_df = _apply_df_filters(df, safe_year, sel_cats, sel_stages, sel_countries)
+            # When categories are filtered, constrain each row's category list to selected ones only
+            cat_df = filtered_df.copy()
+            if sel_cats:
+                def _constrain_cats(cats: object) -> list[str] | None:
+                    items = _as_items(cats)
+                    selected = [c for c in items if c in sel_cats]
+                    return selected if selected else None
+                cat_df["categories"] = cat_df["categories"].apply(_constrain_cats)
+            # When countries are filtered, constrain each row's geo_country list to selected ones only
+            # (companies must still have at least one selected country after constraint)
+            geo_df = filtered_df.copy()
+            if sel_countries:
+                def _constrain_countries(geo_list: object) -> list[str]:
+                    items = _as_items(geo_list)
+                    selected = []
+                    for c in items:
+                        if c != "Unknown":
+                            base = c.split(" - ")[0] if " - " in c else c
+                            if base in sel_countries:
+                                selected.append(c)
+                    return selected
+                geo_df["geo_country"] = geo_df["geo_country"].apply(_constrain_countries)
+                # Drop rows where all countries were filtered out (shouldn't happen if filter logic is correct)
+                geo_df = geo_df[geo_df["geo_country"].apply(lambda x: isinstance(x, list) and len(x) > 0)]
+            return (
+                False,
+                companies_founded_over_time_figure(filtered_df, min_year=safe_year[0], max_year=safe_year[1]),
+                category_polar_bar_figure(cat_df, top_n=10),
+                clinical_stage_bar_figure(filtered_df),
+                geo_map_figure(geo_df),
+                _no, _no, _no, _no,
+            )
+        if triggered == "filter-reset-btn":
+            return (
+                True,
+                companies_founded_over_time_figure(df),
+                category_polar_bar_figure(df, top_n=10),
+                clinical_stage_bar_figure(df),
+                geo_map_figure(df),
+                [FILTER_YEAR_MIN, filter_year_max],
+                [], [], [],
+            )
+        return (_no, _no, _no, _no, _no, _no, _no, _no, _no)
 
     return app
 

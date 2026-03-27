@@ -1,0 +1,200 @@
+/* =====================================================================
+   dcc.Dropdown – dark styling to match Cyborg theme
+   ===================================================================== */
+
+.Select-control {
+    background-color: #1a1a1a !important;
+    border: 1px solid #555555 !important;
+    color: #adafae !important;
+}
+
+.Select-placeholder {
+    color: #6c757d !important;
+}
+
+.Select-input > input {
+    color: #adafae !important;
+    background: transparent !important;
+}
+
+.Select-value-label {
+    color: #adafae !important;
+}
+
+.Select-menu-outer {
+    background-color: #1a1a1a !important;
+    border: 1px solid #555555 !important;
+    z-index: 2000 !important;
+}
+
+.Select-option {
+    background-color: #1a1a1a !important;
+    color: #adafae !important;
+}
+
+.Select-option.is-focused,
+.Select-option:hover {
+    background-color: #2a9fd6 !important;
+    color: #ffffff !important;
+}
+
+.Select-option.is-selected {
+    background-color: #1560a0 !important;
+    color: #ffffff !important;
+}
+
+.Select--multi .Select-value {
+    background-color: #2a9fd6 !important;
+    border-color: #1a7aab !important;
+    color: #ffffff !important;
+}
+
+.Select--multi .Select-value-icon {
+    border-right-color: #1a7aab !important;
+    color: #ffffff !important;
+}
+
+.Select--multi .Select-value-icon:hover {
+    background-color: #cc0000 !important;
+}
+
+.Select-arrow-zone .Select-arrow {
+    border-top-color: #adafae !important;
+}
+
+.Select.is-open .Select-control .Select-arrow {
+    border-bottom-color: #adafae !important;
+    border-top-color: transparent !important;
+}
+
+.Select.is-focused .Select-control {
+    background-color: #1a1a1a !important;
+    border-color: #2a9fd6 !important;
+    box-shadow: 0 0 0 2px rgba(42, 159, 214, 0.25) !important;
+}
+
+.Select-noresults {
+    background-color: #1a1a1a !important;
+    color: #6c757d !important;
+}
+
+.Select-clear-zone {
+    color: #adafae !important;
+}
+
+.Select-clear-zone:hover {
+    color: #cc0000 !important;
+}
+
+/* =====================================================================
+   dcc.RangeSlider – dark styling to match Cyborg theme
+   ===================================================================== */
+
+.rc-slider-rail {
+    background-color: #555555 !important;
+}
+
+.rc-slider-track {
+    background-color: #2a9fd6 !important;
+}
+
+.rc-slider-handle {
+    border-color: #2a9fd6 !important;
+    background-color: #2a9fd6 !important;
+    opacity: 1 !important;
+}
+
+.rc-slider-handle:hover,
+.rc-slider-handle:active,
+.rc-slider-handle-dragging.rc-slider-handle-dragging.rc-slider-handle-dragging {
+    border-color: #8fe9ff !important;
+    box-shadow: 0 0 5px #2a9fd6 !important;
+}
+
+.rc-slider-mark-text {
+    color: #adafae !important;
+}
+
+.rc-slider-tooltip-inner {
+    background-color: #2a9fd6 !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-size: 0.8rem !important;
+    padding: 3px 8px !important;
+}
+
+.rc-slider-tooltip-arrow {
+    border-top-color: #2a9fd6 !important;
+}
+
+/* =====================================================================
+   Filter modal body – allow dropdown menus to overflow the modal
+   ===================================================================== */
+
+.filter-modal-body {
+    overflow: visible !important;
+}
+
+/* =====================================================================
+   Filter action buttons
+   ===================================================================== */
+
+.filter-launch-btn {
+    min-width: 7.5rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.45rem 1.2rem;
+    border-width: 1px;
+    border-color: #2a9fd6 !important;
+    background-color: #2a9fd6 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 1px rgba(143, 233, 255, 0.12), 0 8px 18px rgba(42, 159, 214, 0.18);
+}
+
+.filter-launch-btn:hover,
+.filter-launch-btn:focus {
+    border-color: #35a8dd !important;
+    background-color: #35a8dd !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(143, 233, 255, 0.18), 0 10px 22px rgba(42, 159, 214, 0.24);
+}
+
+.filter-launch-row {
+    position: sticky;
+    top: 0.75rem;
+    margin: 1rem 0 0.75rem;
+    padding: 0.25rem 0;
+    z-index: 1040;
+}
+
+.filter-reset-btn,
+.filter-reset-btn.btn-outline-secondary {
+    color: #c7cdd3 !important;
+    border-color: #6c757d !important;
+}
+
+.filter-reset-btn:hover,
+.filter-reset-btn:focus,
+.filter-reset-btn.btn-outline-secondary:hover,
+.filter-reset-btn.btn-outline-secondary:focus {
+    color: #ffffff !important;
+    border-color: #9aa4ad !important;
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+@media (max-width: 767.98px) {
+    .filter-launch-row {
+        top: 0.5rem;
+        margin: 0.85rem 0 0.75rem;
+    }
+}
+
+/* =====================================================================
+   Plotly hover labels
+   ===================================================================== */
+
+@media (hover: none), (pointer: coarse) {
+    .js-plotly-plot .plotly .hoverlayer {
+        display: none !important;
+    }
+}

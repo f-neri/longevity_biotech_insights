@@ -58,7 +58,6 @@ The repository includes a GitHub Actions workflow at `.github/workflows/weekly-d
 	- `data/companies_raw.csv`
 	- `data/companies_clean.csv`
 	- `data/companies_clean.parquet`
-	- `data/detail_lookups.json`
 
 ### Hugging Face deployment mirror
 

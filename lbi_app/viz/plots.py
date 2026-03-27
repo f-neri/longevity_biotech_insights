@@ -198,7 +198,7 @@ def category_polar_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
             bgcolor="rgba(0,0,0,0)",
             angularaxis=dict(
                 direction="clockwise",
-                rotation=90 - 360 / (2 * top_n),
+                rotation=90 - 360 / (2 * len(categories)) if categories else 90,
                 gridcolor=CYBORG["grid"],
                 linecolor=CYBORG["secondary"],
             ),
@@ -212,6 +212,10 @@ def category_polar_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
             ),
         ),
         showlegend=False,
+        hoverlabel=dict(
+            bgcolor=CYBORG["secondary"],
+            font=dict(color=CYBORG["border"], size=12),
+        ),
     )
 
     return fig
@@ -360,6 +364,10 @@ def clinical_stage_bar_figure(df: pd.DataFrame) -> go.Figure:
         yaxis=dict(
             title="Company Number",
         ),
+        hoverlabel=dict(
+            bgcolor=CYBORG["secondary"],
+            font=dict(color=CYBORG["border"], size=12),
+        ),
     )
 
     return fig
@@ -490,6 +498,10 @@ def geo_map_figure(df: pd.DataFrame) -> go.Figure:
             showlakes=False,
             projection_type="natural earth",
             bgcolor="rgba(0,0,0,0)",
+        ),
+        hoverlabel=dict(
+            bgcolor=CYBORG["secondary"],
+            font=dict(color=CYBORG["border"], size=12),
         ),
     )
 
