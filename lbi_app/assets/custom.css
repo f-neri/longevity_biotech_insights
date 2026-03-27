@@ -198,3 +198,21 @@
         display: none !important;
     }
 }
+
+/* =====================================================================
+   Detail modal DataTable sorting UX
+   ===================================================================== */
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th:hover {
+    background-color: #252525 !important;
+    color: #ffffff !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th [class*="sort"] {
+    color: #2a9fd6 !important;
+    opacity: 1 !important;
+}

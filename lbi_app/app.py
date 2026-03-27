@@ -6,7 +6,7 @@ from importlib import metadata
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, ctx, dcc, html, no_update
+from dash import Input, Output, State, ctx, dcc, html, no_update, dash_table
 from flask import Response
 import pandas as pd
 
@@ -67,47 +67,79 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
         normalized = ["N/A" if part == "Unknown" else part for part in parts if part]
         return ", ".join(normalized) if normalized else "N/A"
 
-    header_cells = [
-        html.Th(
-            label,
-            style={
-                "position": "sticky",
-                "top": 0,
-                "backgroundColor": "#1a1a1a",
-                "padding": "0.4rem 0.6rem",
-                "textAlign": "left",
-                "borderBottom": "1px solid #444444",
-                "whiteSpace": "nowrap",
-            },
-        )
-        for label in ["Company", "Year Founded", "Category", "Clinical Stage", "Location"]
-    ]
-
-    body_rows = [
-        html.Tr(
-            [
-                html.Td(row["Company"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
-                html.Td(row["Year Founded"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
-                html.Td(row["Category"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
-                html.Td(row["Clinical Stage"], style={"padding": "0.35rem 0.6rem", "verticalAlign": "top", "whiteSpace": "nowrap"}),
-                html.Td(_display_location(row.get("Location")), style={"padding": "0.35rem 0.6rem", "verticalAlign": "top"}),
-            ]
-        )
+    table_rows = [
+        {
+            "Company": row.get("Company", "N/A"),
+            "Year Founded": row.get("Year Founded", "N/A"),
+            "Category": row.get("Category", "N/A"),
+            "Clinical Stage": row.get("Clinical Stage", "N/A"),
+            "Location": _display_location(row.get("Location")),
+        }
         for row in rows
     ]
 
+    columns = [
+        {"name": "Company", "id": "Company"},
+        {"name": "Year Founded", "id": "Year Founded"},
+        {"name": "Category", "id": "Category"},
+        {"name": "Clinical Stage", "id": "Clinical Stage"},
+        {"name": "Location", "id": "Location"},
+    ]
+
+    # Ensure header labels do not clip by deriving a minimum width from label length.
+    header_width_rules = [
+        {
+            "if": {"column_id": col["id"]},
+            "minWidth": f"{max(len(col['name']) + 3, 10)}ch",
+        }
+        for col in columns
+    ]
+
     return [
-        dbc.ModalHeader(dbc.ModalTitle(title)),
+        dbc.ModalHeader(dbc.ModalTitle(title, style={"whiteSpace": "pre-line"})),
         dbc.ModalBody(
             html.Div(
-                html.Table(
-                    [html.Thead(html.Tr(header_cells)), html.Tbody(body_rows)],
-                    style={
-                        "width": "100%",
-                        "borderCollapse": "separate",
-                        "borderSpacing": 0,
-                        "fontSize": "0.9rem",
+                dash_table.DataTable(
+                    id="detail-modal-table",
+                    columns=columns,
+                    data=table_rows,
+                    sort_action="native",
+                    sort_mode="multi",
+                    cell_selectable=False,
+                    page_action="none",
+                    fill_width=False,
+                    style_as_list_view=True,
+                    style_table={
+                        "minWidth": "100%",
+                        "overflowX": "auto",
                     },
+                    style_header={
+                        "backgroundColor": "#1a1a1a",
+                        "color": "#adafae",
+                        "fontWeight": "600",
+                        "padding": "0.4rem 0.6rem",
+                        "textAlign": "left",
+                        "borderBottom": "1px solid #444444",
+                        "whiteSpace": "nowrap",
+                    },
+                    style_cell={
+                        "backgroundColor": "rgba(0,0,0,0)",
+                        "color": "#adafae",
+                        "padding": "0.35rem 0.6rem",
+                        "fontSize": "0.9rem",
+                        "border": "none",
+                        "textAlign": "left",
+                        "verticalAlign": "top",
+                        "whiteSpace": "normal",
+                        "height": "auto",
+                    },
+                    style_cell_conditional=[
+                        *header_width_rules,
+                        {"if": {"column_id": "Company"}, "whiteSpace": "nowrap"},
+                        {"if": {"column_id": "Year Founded"}, "whiteSpace": "nowrap"},
+                        {"if": {"column_id": "Clinical Stage"}, "whiteSpace": "nowrap"},
+                    ],
+                    fixed_rows={"headers": True},
                 ),
                 style={"overflowX": "auto", "overflowY": "auto", "maxHeight": "65vh"},
             ),
@@ -117,7 +149,7 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
 
 def format_detail_modal_title(filter_label: str, selected_value: str, count: int) -> str:
     company_label = "company" if count == 1 else "companies"
-    return f"{filter_label}: {selected_value} ({count} {company_label})"
+    return f"{filter_label}: {selected_value}\n({count} {company_label})"
 
 
 def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, str]]:
