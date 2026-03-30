@@ -1,130 +1,167 @@
 /* =====================================================================
-   dcc.Dropdown – dark styling to match Cyborg theme
+   Filter modal components – dark styling for modern Dash dcc.Dropdown/
+   dcc.RangeSlider to match Cyborg theme
    ===================================================================== */
 
-.Select-control {
+.filter-modal-body .dash-dropdown,
+.filter-modal-body .dash-dropdown-content {
+    background: #1a1a1a !important;
     background-color: #1a1a1a !important;
-    border: 1px solid #555555 !important;
+    border-color: #555555 !important;
     color: #adafae !important;
 }
 
-.Select-placeholder {
-    color: #6c757d !important;
+.filter-modal-body .dash-dropdown-trigger {
+    min-height: 32px;
 }
 
-.Select-input > input {
-    color: #adafae !important;
-    background: transparent !important;
-}
-
-.Select-value-label {
-    color: #adafae !important;
-}
-
-.Select-menu-outer {
-    background-color: #1a1a1a !important;
-    border: 1px solid #555555 !important;
-    z-index: 2000 !important;
-}
-
-.Select-option {
-    background-color: #1a1a1a !important;
-    color: #adafae !important;
-}
-
-.Select-option.is-focused,
-.Select-option:hover {
-    background-color: #2a9fd6 !important;
-    color: #ffffff !important;
-}
-
-.Select-option.is-selected {
-    background-color: #1560a0 !important;
-    color: #ffffff !important;
-}
-
-.Select--multi .Select-value {
-    background-color: #2a9fd6 !important;
-    border-color: #1a7aab !important;
-    color: #ffffff !important;
-}
-
-.Select--multi .Select-value-icon {
-    border-right-color: #1a7aab !important;
-    color: #ffffff !important;
-}
-
-.Select--multi .Select-value-icon:hover {
-    background-color: #cc0000 !important;
-}
-
-.Select-arrow-zone .Select-arrow {
-    border-top-color: #adafae !important;
-}
-
-.Select.is-open .Select-control .Select-arrow {
-    border-bottom-color: #adafae !important;
-    border-top-color: transparent !important;
-}
-
-.Select.is-focused .Select-control {
-    background-color: #1a1a1a !important;
+.filter-modal-body .dash-dropdown:focus,
+.filter-modal-body .dash-dropdown-search-container:focus-within {
     border-color: #2a9fd6 !important;
+    outline-color: #2a9fd6 !important;
     box-shadow: 0 0 0 2px rgba(42, 159, 214, 0.25) !important;
 }
 
-.Select-noresults {
-    background-color: #1a1a1a !important;
+.filter-modal-body .dash-dropdown-value,
+.filter-modal-body .dash-dropdown-search,
+.filter-modal-body .dash-dropdown-option,
+.filter-modal-body .dash-options-list-option-text {
+    color: #adafae !important;
+}
+
+.filter-modal-body .dash-dropdown-placeholder,
+.filter-modal-body .dash-dropdown-action-button {
     color: #6c757d !important;
 }
 
-.Select-clear-zone {
+.filter-modal-body .dash-dropdown-value-count,
+.filter-modal-body .dash-dropdown-trigger-icon,
+.filter-modal-body .dash-dropdown-clear,
+.filter-modal-body .dash-dropdown-search-icon {
     color: #adafae !important;
+    fill: #adafae !important;
 }
 
-.Select-clear-zone:hover {
-    color: #cc0000 !important;
+.filter-modal-body .dash-dropdown-option,
+.filter-modal-body .dash-options-list-option {
+    background: #1a1a1a !important;
 }
 
-/* =====================================================================
-   dcc.RangeSlider – dark styling to match Cyborg theme
-   ===================================================================== */
+.filter-modal-body .dash-dropdown-option:hover,
+.filter-modal-body .dash-options-list-option:hover,
+.filter-modal-body .dash-options-list-option:focus-within,
+.filter-modal-body .dash-options-list-option.selected {
+    background: #2a9fd6 !important;
+    color: #ffffff !important;
+}
 
-.rc-slider-rail {
+.filter-modal-body .dash-options-list-option.selected {
+    background: #2a9fd6 !important;
+    color: #ffffff !important;
+}
+
+.filter-modal-body .dash-options-list-option.selected .dash-options-list-option-text,
+.filter-modal-body .dash-options-list-option.selected .dash-dropdown-option {
+    color: #ffffff !important;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .filter-modal-body .dash-dropdown-option:not(.selected):hover,
+    .filter-modal-body .dash-options-list-option:not(.selected):hover,
+    .filter-modal-body .dash-options-list-option:not(.selected):focus-within {
+        background: #1a1a1a !important;
+        color: #adafae !important;
+    }
+
+    .filter-modal-body .dash-options-list-option:not(.selected):hover .dash-options-list-option-text,
+    .filter-modal-body .dash-options-list-option:not(.selected):focus-within .dash-options-list-option-text {
+        color: #adafae !important;
+    }
+}
+
+.filter-modal-body .dash-dropdown-clear:hover,
+.filter-modal-body .dash-dropdown-action-button:hover,
+.filter-modal-body .dash-dropdown-search-container:focus-within .dash-dropdown-search-icon {
+    color: #2a9fd6 !important;
+    fill: #2a9fd6 !important;
+}
+
+.filter-modal-body .dash-options-list-option-checkbox {
+    accent-color: #2a9fd6;
+}
+
+.filter-modal-body .dash-options-list-option-checkbox {
+    display: none !important;
+}
+
+.filter-modal-body .dash-dropdown-value {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    white-space: normal;
+}
+
+.filter-modal-body .dash-dropdown-value-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid #2a9fd6;
+    border-radius: 0.35rem;
+    background: #2a9fd6;
+    color: #ffffff !important;
+    line-height: 1.25;
+}
+
+.filter-modal-body .dash-dropdown-value-item:not(:first-child)::before {
+    content: "" !important;
+}
+
+.filter-modal-body .dash-range-slider-inputs,
+.filter-modal-body .dash-range-slider-min-input,
+.filter-modal-body .dash-range-slider-max-input {
+    display: none !important;
+}
+
+#filter-year-range {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+#filter-year-range .dash-slider-track {
     background-color: #555555 !important;
 }
 
-.rc-slider-track {
+#filter-year-range .dash-slider-range {
     background-color: #2a9fd6 !important;
 }
 
-.rc-slider-handle {
-    border-color: #2a9fd6 !important;
+#filter-year-range .dash-slider-thumb {
     background-color: #2a9fd6 !important;
-    opacity: 1 !important;
+    border-color: #ffffff !important;
 }
 
-.rc-slider-handle:hover,
-.rc-slider-handle:active,
-.rc-slider-handle-dragging.rc-slider-handle-dragging.rc-slider-handle-dragging {
-    border-color: #8fe9ff !important;
+#filter-year-range .dash-slider-thumb:hover,
+#filter-year-range .dash-slider-thumb:focus {
     box-shadow: 0 0 5px #2a9fd6 !important;
+    outline-color: #8fe9ff !important;
 }
 
-.rc-slider-mark-text {
+#filter-year-range .dash-slider-mark {
     color: #adafae !important;
 }
 
-.rc-slider-tooltip-inner {
-    background-color: #2a9fd6 !important;
-    border: none !important;
-    color: #ffffff !important;
-    font-size: 0.8rem !important;
-    padding: 3px 8px !important;
+#filter-year-range .dash-slider-mark-outside-selection {
+    color: #6c757d !important;
 }
 
-.rc-slider-tooltip-arrow {
-    border-top-color: #2a9fd6 !important;
+#filter-year-range .dash-slider-tooltip {
+    background-color: #2a9fd6 !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+}
+
+#filter-year-range .dash-slider-tooltip > div {
+    color: #ffffff !important;
 }
 
 /* =====================================================================
@@ -133,6 +170,20 @@
 
 .filter-modal-body {
     overflow: visible !important;
+    --Dash-Fill-Interactive-Strong: #2a9fd6;
+    --Dash-Fill-Interactive-Weak: rgba(42, 159, 214, 0.14);
+    --Dash-Fill-Primary-Active: #2a9fd6;
+    --Dash-Fill-Inverse-Strong: #1a1a1a;
+    --Dash-Fill-Inverse-strong: #1a1a1a;
+    --Dash-Text-Primary: #adafae;
+    --Dash-Text-Strong: #adafae;
+    --Dash-Text-Weak: #c7cdd3;
+    --Dash-Text-Disabled: #6c757d;
+    --Dash-Fill-Disabled: #555555;
+    --Dash-Stroke-Strong: #555555;
+    --Dash-Stroke-Weak: rgba(85, 85, 85, 0.35);
+    --Dash-Shading-Strong: rgba(0, 0, 0, 0.55);
+    --Dash-Shading-Weak: rgba(0, 0, 0, 0.3);
 }
 
 /* =====================================================================
