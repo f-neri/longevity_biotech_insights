@@ -264,6 +264,10 @@ def graph_loader(graph_id: str, figure: object | None = None) -> dcc.Loading:
         type="circle",
         color="#2a9fd6",
         delay_show=150,
+        delay_hide=500,
+        overlay_style={
+            "visibility":"visible", "filter": "blur(5px)", "backgroundColor":"rgba(0,0,0,0.5)"
+        },
         target_components={graph_id: "figure"},
         custom_spinner=html.Div(
             [
@@ -393,7 +397,7 @@ def create_app() -> dash.Dash:
 
     app.layout = dbc.Container(
         [
-            dcc.Store(id="initial-load-trigger", data=True),
+            dcc.Location(id="url", refresh=False),
             html.Img(
                 src="/assets/LBI_white_text_yellow_bulb.svg",
                 style={
@@ -713,14 +717,14 @@ def create_app() -> dash.Dash:
         Output("filter-category", "value"),
         Output("filter-stage", "value"),
         Output("filter-country", "value"),
-        Input("initial-load-trigger", "data"),
+        Input("url", "pathname"),
         Input("filter-apply-btn", "n_clicks"),
         Input("filter-reset-btn", "n_clicks"),
         State("filter-year-range", "value"),
         State("filter-category", "value"),
         State("filter-stage", "value"),
         State("filter-country", "value"),
-        prevent_initial_call=False,
+        prevent_initial_call=True,
     )
     def update_figures(
         initial_load, apply_clicks, reset_clicks,
@@ -729,7 +733,7 @@ def create_app() -> dash.Dash:
         triggered = ctx.triggered_id
         _no = no_update
 
-        if triggered in (None, "initial-load-trigger"):
+        if triggered in (None, "url"):
             return (
                 companies_founded_over_time_figure(df),
                 category_polar_bar_figure(df, top_n=10),
