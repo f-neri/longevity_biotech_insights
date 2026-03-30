@@ -200,7 +200,6 @@ version = get_app_version()
 
 FILTER_YEAR_MIN = 2000
 
-
 def _as_items(value: object) -> list[str]:
     """Normalize scalar/list-like cell values into a clean string list."""
     if value is None:
@@ -259,15 +258,34 @@ def _apply_df_filters(
         mask &= df["geo_country"].apply(_has_country)
     return df[mask]
 
+def graph_loader(graph_id: str, figure: object | None = None) -> dcc.Loading:
+    """Return a graph wrapped in a consistent loading spinner."""
+    return dcc.Loading(
+        type="circle",
+        color="#2a9fd6",
+        delay_show=150,
+        target_components={graph_id: "figure"},
+        custom_spinner=html.Div(
+            [
+                html.Div(className="lbi-spinner-ring"),
+                html.Img(
+                    src="/assets/logo.svg",
+                    className="lbi-spinner-logo",
+                ),
+            ],
+            className="lbi-spinner-container",
+        ),
+        children=dcc.Graph(
+            id=graph_id,
+            figure=figure if figure is not None else {},
+            config={"displayModeBar": False},
+        ),
+    )
 
 def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
     df = load_snapshot()
-    fig_categories = category_polar_bar_figure(df, top_n=10)
-    fig_founded_over_time = companies_founded_over_time_figure(df)
-    fig_clinical_stage = clinical_stage_bar_figure(df)
-    fig_geo = geo_map_figure(df)
-
+    
     # --- Filter options ------------------------------------------------------
     filter_year_max = pd.Timestamp.today().year - 1
     all_categories = sorted(
@@ -375,6 +393,7 @@ def create_app() -> dash.Dash:
 
     app.layout = dbc.Container(
         [
+            dcc.Store(id="initial-load-trigger", data=True),
             html.Img(
                 src="/assets/LBI_white_text_yellow_bulb.svg",
                 style={
@@ -422,11 +441,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    dcc.Graph(
-                                        id="founded-over-time",
-                                        figure=fig_founded_over_time,
-                                        config={"displayModeBar": False},
-                                    ),
+                                    graph_loader("founded-over-time")
                                 ]
                             ),
                         ),
@@ -437,11 +452,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    dcc.Graph(
-                                        id="category-bar",
-                                        figure=fig_categories,
-                                        config={"displayModeBar": False},
-                                    ),
+                                    graph_loader("category-bar")
                                 ]
                             ),
                         ),
@@ -457,11 +468,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    dcc.Graph(
-                                        id="clinical-stage-bar",
-                                        figure=fig_clinical_stage,
-                                        config={"displayModeBar": False},
-                                    ),
+                                    graph_loader("clinical-stage-bar")
                                 ]
                             ),
                         ),
@@ -472,11 +479,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    dcc.Graph(
-                                        id="geo-map",
-                                        figure=fig_geo,
-                                        config={"displayModeBar": False},
-                                    ),
+                                    graph_loader("geo-map")
                                 ]
                             ),
                         ),
@@ -575,6 +578,7 @@ def create_app() -> dash.Dash:
         className="pb-4",
     )
 
+    # --- Chart click callback for detail table modal ------------------------------------------------
     @app.callback(
         Output("detail-modal", "is_open"),
         Output("detail-modal", "children"),
@@ -679,8 +683,28 @@ def create_app() -> dash.Dash:
             resets["geo-map"],
         )
 
+    # --- Filter modal callback ------------------------------------------------
     @app.callback(
         Output("filter-modal", "is_open"),
+        Input("filter-open-btn", "n_clicks"),
+        Input("filter-apply-btn", "n_clicks"),
+        Input("filter-reset-btn", "n_clicks"),
+        State("filter-modal", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_filter_modal(open_clicks, apply_clicks, reset_clicks, is_open):
+        triggered = ctx.triggered_id
+
+        if triggered == "filter-open-btn":
+            return True
+
+        if triggered in ("filter-apply-btn", "filter-reset-btn"):
+            return False
+
+        return is_open
+    
+    # --- Figures callback ------------------------------------------------
+    @app.callback(
         Output("founded-over-time", "figure"),
         Output("category-bar", "figure"),
         Output("clinical-stage-bar", "figure"),
@@ -689,27 +713,39 @@ def create_app() -> dash.Dash:
         Output("filter-category", "value"),
         Output("filter-stage", "value"),
         Output("filter-country", "value"),
-        Input("filter-open-btn", "n_clicks"),
+        Input("initial-load-trigger", "data"),
         Input("filter-apply-btn", "n_clicks"),
         Input("filter-reset-btn", "n_clicks"),
         State("filter-year-range", "value"),
         State("filter-category", "value"),
         State("filter-stage", "value"),
         State("filter-country", "value"),
-        prevent_initial_call=True,
+        prevent_initial_call=False,
     )
-    def handle_filter_modal(
-        open_clicks, apply_clicks, reset_clicks,
+    def update_figures(
+        initial_load, apply_clicks, reset_clicks,
         year_range, sel_cats, sel_stages, sel_countries,
     ):
         triggered = ctx.triggered_id
         _no = no_update
-        if triggered == "filter-open-btn":
-            return (True, _no, _no, _no, _no, _no, _no, _no, _no)
+
+        if triggered in (None, "initial-load-trigger"):
+            return (
+                companies_founded_over_time_figure(df),
+                category_polar_bar_figure(df, top_n=10),
+                clinical_stage_bar_figure(df),
+                geo_map_figure(df),
+                [FILTER_YEAR_MIN, filter_year_max],
+                [],
+                [],
+                [],
+            )
+
         safe_year = year_range if year_range else [FILTER_YEAR_MIN, filter_year_max]
+
         if triggered == "filter-apply-btn":
             filtered_df = _apply_df_filters(df, safe_year, sel_cats, sel_stages, sel_countries)
-            # When categories are filtered, constrain each row's category list to selected ones only
+
             cat_df = filtered_df.copy()
             if sel_cats:
                 def _constrain_cats(cats: object) -> list[str] | None:
@@ -717,8 +753,7 @@ def create_app() -> dash.Dash:
                     selected = [c for c in items if c in sel_cats]
                     return selected if selected else None
                 cat_df["categories"] = cat_df["categories"].apply(_constrain_cats)
-            # When countries are filtered, constrain each row's geo_country list to selected ones only
-            # (companies must still have at least one selected country after constraint)
+
             geo_df = filtered_df.copy()
             if sel_countries:
                 def _constrain_countries(geo_list: object) -> list[str]:
@@ -730,29 +765,37 @@ def create_app() -> dash.Dash:
                             if base in sel_countries:
                                 selected.append(c)
                     return selected
+
                 geo_df["geo_country"] = geo_df["geo_country"].apply(_constrain_countries)
-                # Drop rows where all countries were filtered out (shouldn't happen if filter logic is correct)
-                geo_df = geo_df[geo_df["geo_country"].apply(lambda x: isinstance(x, list) and len(x) > 0)]
+                geo_df = geo_df[
+                    geo_df["geo_country"].apply(lambda x: isinstance(x, list) and len(x) > 0)
+                ]
+
             return (
-                False,
                 companies_founded_over_time_figure(filtered_df, min_year=safe_year[0], max_year=safe_year[1]),
                 category_polar_bar_figure(cat_df, top_n=10),
                 clinical_stage_bar_figure(filtered_df),
                 geo_map_figure(geo_df),
-                _no, _no, _no, _no,
+                _no,
+                _no,
+                _no,
+                _no,
             )
+
         if triggered == "filter-reset-btn":
             return (
-                False,
                 companies_founded_over_time_figure(df),
                 category_polar_bar_figure(df, top_n=10),
                 clinical_stage_bar_figure(df),
                 geo_map_figure(df),
                 [FILTER_YEAR_MIN, filter_year_max],
-                [], [], [],
+                [],
+                [],
+                [],
             )
-        return (_no, _no, _no, _no, _no, _no, _no, _no, _no)
 
+        return (_no, _no, _no, _no, _no, _no, _no, _no)
+    
     return app
 
 
