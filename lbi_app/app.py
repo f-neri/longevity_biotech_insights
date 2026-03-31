@@ -264,7 +264,7 @@ def graph_loader(graph_id: str, figure: object | None = None) -> dcc.Loading:
         type="circle",
         color="#2a9fd6",
         delay_show=150,
-        delay_hide=500,
+        delay_hide=300,
         overlay_style={
             "visibility":"visible", "filter": "blur(5px)", "backgroundColor":"rgba(0,0,0,0.5)"
         },
@@ -289,6 +289,10 @@ def graph_loader(graph_id: str, figure: object | None = None) -> dcc.Loading:
 def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
     df = load_snapshot()
+    fig_founded_over_time = companies_founded_over_time_figure(df)
+    fig_categories = category_polar_bar_figure(df, top_n=10)
+    fig_clinical_stage = clinical_stage_bar_figure(df)
+    fig_geo = geo_map_figure(df)
     
     # --- Filter options ------------------------------------------------------
     filter_year_max = pd.Timestamp.today().year - 1
@@ -355,11 +359,50 @@ def create_app() -> dash.Dash:
         {%css%}
     </head>
     <body>
+        <div id="page-loader-overlay">
+            <div class="page-loader-inner">
+                <div class="lbi-spinner-container">
+                    <div class="lbi-spinner-ring"></div>
+                    <img src="/assets/logo.svg" class="lbi-spinner-logo" alt="Loading">
+                </div>
+                <div class="page-loader-text">Loading Longevity Biotech Insights...</div>
+            </div>
+        </div>
         {%app_entry%}
         <footer>
             {%config%}
             {%scripts%}
             {%renderer%}
+                <script>
+                    function hidePageLoaderWhenReady() {
+                        const overlay = document.getElementById("page-loader-overlay");
+                        const graphIds = [
+                            "founded-over-time",
+                            "category-bar",
+                            "clinical-stage-bar",
+                            "geo-map"
+                        ];
+
+                        if (!overlay) return;
+
+                        const allReady = graphIds.every(function (id) {
+                            const el = document.getElementById(id);
+                            return el && el.querySelector(".js-plotly-plot");
+                        });
+
+                        if (allReady) {
+                            overlay.classList.add("page-loader-hidden");
+                            if (window.__lbiLoaderPoll) {
+                                window.clearInterval(window.__lbiLoaderPoll);
+                            }
+                        }
+                    }
+
+                    window.addEventListener("load", function () {
+                        window.__lbiLoaderPoll = window.setInterval(hidePageLoaderWhenReady, 100);
+                        hidePageLoaderWhenReady();
+                    });
+                </script>
         </footer>
     </body>
 </html>
@@ -397,7 +440,6 @@ def create_app() -> dash.Dash:
 
     app.layout = dbc.Container(
         [
-            dcc.Location(id="url", refresh=False),
             html.Img(
                 src="/assets/LBI_white_text_yellow_bulb.svg",
                 style={
@@ -445,7 +487,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    graph_loader("founded-over-time")
+                                    graph_loader("founded-over-time", fig_founded_over_time)
                                 ]
                             ),
                         ),
@@ -456,7 +498,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    graph_loader("category-bar")
+                                    graph_loader("category-bar", fig_categories)
                                 ]
                             ),
                         ),
@@ -472,7 +514,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    graph_loader("clinical-stage-bar")
+                                    graph_loader("clinical-stage-bar", fig_clinical_stage)
                                 ]
                             ),
                         ),
@@ -483,7 +525,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    graph_loader("geo-map")
+                                    graph_loader("geo-map", fig_geo)
                                 ]
                             ),
                         ),
@@ -717,7 +759,6 @@ def create_app() -> dash.Dash:
         Output("filter-category", "value"),
         Output("filter-stage", "value"),
         Output("filter-country", "value"),
-        Input("url", "pathname"),
         Input("filter-apply-btn", "n_clicks"),
         Input("filter-reset-btn", "n_clicks"),
         State("filter-year-range", "value"),
@@ -727,23 +768,11 @@ def create_app() -> dash.Dash:
         prevent_initial_call=True,
     )
     def update_figures(
-        initial_load, apply_clicks, reset_clicks,
+        apply_clicks, reset_clicks,
         year_range, sel_cats, sel_stages, sel_countries,
     ):
         triggered = ctx.triggered_id
         _no = no_update
-
-        if triggered in (None, "url"):
-            return (
-                companies_founded_over_time_figure(df),
-                category_polar_bar_figure(df, top_n=10),
-                clinical_stage_bar_figure(df),
-                geo_map_figure(df),
-                [FILTER_YEAR_MIN, filter_year_max],
-                [],
-                [],
-                [],
-            )
 
         safe_year = year_range if year_range else [FILTER_YEAR_MIN, filter_year_max]
 
