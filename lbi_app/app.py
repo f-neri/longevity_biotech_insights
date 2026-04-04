@@ -70,7 +70,11 @@ def _format_list_cell(value: object) -> str:
     return text or "N/A"
 
 
-def build_detail_modal_body(title: str, rows: list[dict[str, object]]) -> list:
+def build_detail_modal_body(
+    title: str,
+    rows: list[dict[str, object]],
+    initial_sort_by: list[dict[str, str]] | None = None,
+) -> list:
     def _display_location(value: object) -> str:
         text = str(value).strip() if value is not None else ""
         if not text:
@@ -127,6 +131,7 @@ def build_detail_modal_body(title: str, rows: list[dict[str, object]]) -> list:
                     data=table_rows,
                     sort_action="native",
                     sort_mode="multi",
+                    sort_by=initial_sort_by or [],
                     cell_selectable=False,
                     page_action="none",
                     fill_width=False,
@@ -784,7 +789,7 @@ def create_app() -> dash.Dash:
         filter_labels = {
             "clinical-stage-bar": "Clinical Stage",
             "founded-over-time": "Year Founded",
-            "total-raised-lollipop": "Company",
+            "total-raised-lollipop": "Funding Plot",
             "category-bar": "Category",
             "geo-map": "Location",
         }
@@ -826,9 +831,20 @@ def create_app() -> dash.Dash:
             founded_years = pd.to_datetime(filtered_df["year founded"], errors="coerce").dt.year
             rows_df = filtered_df[founded_years == year_int]
         elif triggered == "total-raised-lollipop":
-            key = str(point.get("customdata", "")).strip()
+            key = (
+                "Current filtered companies "
+                f"[${safe_raised[0]:,} - ${safe_raised[1]:,}M]"
+            )
+            plotted_df = (
+                filtered_df[["Company", "total_raised_usd_m"]]
+                .copy()
+                .assign(total_raised_usd_m=lambda frame: pd.to_numeric(frame["total_raised_usd_m"], errors="coerce"))
+                .dropna(subset=["Company", "total_raised_usd_m"])
+            )
+            plotted_df = plotted_df[plotted_df["total_raised_usd_m"] > 0]
+            plotted_companies = set(plotted_df["Company"].astype(str).str.strip())
             company_series = filtered_df["Company"].astype("string").str.strip()
-            rows_df = filtered_df[company_series == key]
+            rows_df = filtered_df[company_series.isin(plotted_companies)]
         elif triggered == "category-bar":
             key = str(point.get("theta", "")).strip()
             rows_df = filtered_df[filtered_df["categories"].apply(lambda cats: key in _as_items(cats))]
@@ -855,12 +871,18 @@ def create_app() -> dash.Dash:
             no_update,
         )
         resets[triggered] = None
+        initial_sort_by = (
+            [{"column_id": "Total Funding Raised ($M)", "direction": "desc"}]
+            if triggered == "total-raised-lollipop"
+            else []
+        )
 
         return (
             True,
             build_detail_modal_body(
                 format_detail_modal_title(filter_labels[triggered], key, len(rows)),
                 rows,
+                initial_sort_by=initial_sort_by,
             ),
             resets["clinical-stage-bar"],
             resets["founded-over-time"],
