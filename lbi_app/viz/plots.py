@@ -314,6 +314,122 @@ def companies_founded_over_time_figure(
     return fig
 
 
+def total_raised_lollipop_figure(
+    df: pd.DataFrame,
+    *,
+    amount_col: str = "total_raised_usd_m",
+    y_scale: str = "log",
+) -> go.Figure:
+    if "Company" not in df.columns:
+        raise KeyError("Column not found: Company")
+    if amount_col not in df.columns:
+        raise KeyError(f"Column not found: {amount_col}")
+    if "full overall score" not in df.columns:
+        raise KeyError("Column not found: full overall score")
+
+    raised_df = (
+        df[["Company", amount_col, "full overall score"]]
+        .copy()
+        .assign(**{amount_col: lambda frame: pd.to_numeric(frame[amount_col], errors="coerce")})
+        .dropna(subset=[amount_col, "Company"])
+    )
+    raised_df = raised_df[raised_df[amount_col] > 0]
+
+    raised_df = raised_df.sort_values(
+        [amount_col, "full overall score", "Company"],
+        ascending=[False, False, True],
+    ).reset_index(drop=True)
+
+    fig = go.Figure()
+    if raised_df.empty:
+        fig.update_layout(
+            title="Total Funding Raised by Company",
+            xaxis=dict(visible=False),
+            yaxis=dict(visible=False),
+            annotations=[
+                dict(
+                    text="No funding data available",
+                    x=0.5,
+                    y=0.5,
+                    xref="paper",
+                    yref="paper",
+                    showarrow=False,
+                    font=dict(color=CYBORG["fg"], size=14),
+                )
+            ],
+        )
+        return fig
+
+    x_positions = list(range(len(raised_df)))
+    amounts = raised_df[amount_col].astype(float).tolist()
+    companies = raised_df["Company"].astype(str).tolist()
+
+    min_amount = min(amounts)
+    max_amount = max(amounts)
+    stem_base = 0.0 if y_scale == "linear" else max(min_amount * 0.8, 1e-3)
+
+    stem_x: list[int | None] = []
+    stem_y: list[float | None] = []
+    for position, amount in zip(x_positions, amounts, strict=False):
+        stem_x.extend([position, position, None])
+        stem_y.extend([stem_base, amount, None])
+
+    fig.add_trace(
+        go.Scatter(
+            x=stem_x,
+            y=stem_y,
+            mode="lines",
+            line=dict(color=CYBORG["secondary"], width=2),
+            hoverinfo="skip",
+            showlegend=False,
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_positions,
+            y=amounts,
+            mode="markers",
+            marker=dict(
+                size=9,
+                color=CYBORG["primary"],
+                line=dict(color=CYBORG["border"], width=1),
+            ),
+            customdata=companies,
+            hovertemplate=(
+                "<b>%{customdata}</b><br>"
+                "Total Funding Raised: $%{y:,.1f}M<extra></extra>"
+            ),
+            showlegend=False,
+        )
+    )
+
+    fig.update_layout(
+        title="Total Funding Raised by Company",
+        xaxis=dict(
+            title=None,
+            showticklabels=False,
+            showgrid=False,
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title="Funding Raised ($M)",
+            type=y_scale,
+            range=(
+                [math.log10(stem_base), math.log10(max_amount * 1.15)]
+                if y_scale == "log"
+                else [0, max_amount * 1.15]
+            ),
+        ),
+        hoverlabel=dict(
+            bgcolor=CYBORG["secondary"],
+            font=dict(color=CYBORG["border"], size=12),
+        ),
+    )
+
+    return fig
+
+
 def clinical_stage_bar_figure(df: pd.DataFrame) -> go.Figure:
     if "Company" not in df.columns:
         raise KeyError("Column not found: Company")

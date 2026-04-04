@@ -314,6 +314,33 @@
     background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
+.lollipop-scale-toggle {
+    position: absolute;
+    bottom: 0.65rem;
+    left: 0.85rem;
+    z-index: 3;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid #555555;
+    border-radius: 0.4rem;
+    background: rgba(6, 6, 6, 0.72);
+    backdrop-filter: blur(1px);
+}
+
+.lollipop-scale-toggle .form-check {
+    margin-bottom: 0;
+    min-height: auto;
+}
+
+.lollipop-scale-toggle .form-check-label {
+    color: #adafae;
+    font-size: 0.82rem;
+    line-height: 1.1;
+}
+
+.lollipop-scale-toggle .form-check-input {
+    cursor: pointer;
+}
+
 @media (max-width: 767.98px) {
     .filter-launch-row {
         top: 0.5rem;

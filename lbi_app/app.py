@@ -7,7 +7,7 @@ from importlib import metadata
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, ctx, dcc, html, no_update, dash_table
+from dash import Input, Output, Patch, State, ctx, dcc, html, no_update, dash_table
 from flask import Response
 import pandas as pd
 
@@ -16,6 +16,7 @@ from lbi_app.viz.plots import (
     clinical_stage_bar_figure,
     companies_founded_over_time_figure,
     geo_map_figure,
+    total_raised_lollipop_figure,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -330,6 +331,7 @@ def create_app() -> dash.Dash:
     """Create and configure the Dash app instance."""
     df = load_snapshot()
     fig_founded_over_time = companies_founded_over_time_figure(df)
+    fig_total_raised = total_raised_lollipop_figure(df)
     fig_categories = category_polar_bar_figure(df, top_n=10)
     fig_clinical_stage = clinical_stage_bar_figure(df)
     fig_geo = geo_map_figure(df)
@@ -435,6 +437,7 @@ def create_app() -> dash.Dash:
                         const overlay = document.getElementById("page-loader-overlay");
                         const graphIds = [
                             "founded-over-time",
+                            "total-raised-lollipop",
                             "category-bar",
                             "clinical-stage-bar",
                             "geo-map"
@@ -553,11 +556,17 @@ def create_app() -> dash.Dash:
                     ),
                     dbc.Col(
                         dbc.Card(
-                            dbc.CardBody(
-                                [
-                                    graph_loader("category-bar", fig_categories)
-                                ]
-                            ),
+                            dbc.CardBody([
+                                graph_loader("total-raised-lollipop", fig_total_raised),
+                                html.Div(
+                                    dbc.Switch(
+                                        id="lollipop-yscale-toggle",
+                                        label="Log Y-axis",
+                                        value=True,
+                                    ),
+                                    className="lollipop-scale-toggle",
+                                ),
+                            ], className="position-relative"),
                         ),
                         xs=12,
                         md=6,
@@ -571,7 +580,7 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    graph_loader("clinical-stage-bar", fig_clinical_stage)
+                                    graph_loader("category-bar", fig_categories)
                                 ]
                             ),
                         ),
@@ -582,12 +591,28 @@ def create_app() -> dash.Dash:
                         dbc.Card(
                             dbc.CardBody(
                                 [
-                                    graph_loader("geo-map", fig_geo)
+                                    graph_loader("clinical-stage-bar", fig_clinical_stage)
                                 ]
                             ),
                         ),
                         xs=12,
                         md=6,
+                    ),
+                ],
+                className="mt-3 g-3",
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(
+                        dbc.Card(
+                            dbc.CardBody(
+                                [
+                                    graph_loader("geo-map", fig_geo)
+                                ]
+                            ),
+                        ),
+                        xs=12,
+                        md=12,
                     ),
                 ],
                 className="mt-3 g-3",
@@ -725,10 +750,12 @@ def create_app() -> dash.Dash:
         Output("detail-modal", "children"),
         Output("clinical-stage-bar", "clickData"),
         Output("founded-over-time", "clickData"),
+        Output("total-raised-lollipop", "clickData"),
         Output("category-bar", "clickData"),
         Output("geo-map", "clickData"),
         Input("clinical-stage-bar", "clickData"),
         Input("founded-over-time", "clickData"),
+        Input("total-raised-lollipop", "clickData"),
         Input("category-bar", "clickData"),
         Input("geo-map", "clickData"),
         State("filter-year-range", "value"),
@@ -742,6 +769,7 @@ def create_app() -> dash.Dash:
     def handle_chart_click(
         stage_click,
         time_click,
+        raised_click,
         cat_click,
         geo_click,
         year_range,
@@ -752,10 +780,11 @@ def create_app() -> dash.Dash:
         sel_countries,
     ):
         triggered = ctx.triggered_id
-        no_changes = (False, no_update, no_update, no_update, no_update, no_update)
+        no_changes = (False, no_update, no_update, no_update, no_update, no_update, no_update)
         filter_labels = {
             "clinical-stage-bar": "Clinical Stage",
             "founded-over-time": "Year Founded",
+            "total-raised-lollipop": "Company",
             "category-bar": "Category",
             "geo-map": "Location",
         }
@@ -763,6 +792,7 @@ def create_app() -> dash.Dash:
         click_data_map = {
             "clinical-stage-bar": stage_click,
             "founded-over-time": time_click,
+            "total-raised-lollipop": raised_click,
             "category-bar": cat_click,
             "geo-map": geo_click,
         }
@@ -795,6 +825,10 @@ def create_app() -> dash.Dash:
             key = str(year_int)
             founded_years = pd.to_datetime(filtered_df["year founded"], errors="coerce").dt.year
             rows_df = filtered_df[founded_years == year_int]
+        elif triggered == "total-raised-lollipop":
+            key = str(point.get("customdata", "")).strip()
+            company_series = filtered_df["Company"].astype("string").str.strip()
+            rows_df = filtered_df[company_series == key]
         elif triggered == "category-bar":
             key = str(point.get("theta", "")).strip()
             rows_df = filtered_df[filtered_df["categories"].apply(lambda cats: key in _as_items(cats))]
@@ -817,7 +851,7 @@ def create_app() -> dash.Dash:
             return no_changes
 
         resets = dict.fromkeys(
-            ["clinical-stage-bar", "founded-over-time", "category-bar", "geo-map"],
+            ["clinical-stage-bar", "founded-over-time", "total-raised-lollipop", "category-bar", "geo-map"],
             no_update,
         )
         resets[triggered] = None
@@ -830,6 +864,7 @@ def create_app() -> dash.Dash:
             ),
             resets["clinical-stage-bar"],
             resets["founded-over-time"],
+            resets["total-raised-lollipop"],
             resets["category-bar"],
             resets["geo-map"],
         )
@@ -879,6 +914,7 @@ def create_app() -> dash.Dash:
     # --- Figures callback ------------------------------------------------
     @app.callback(
         Output("founded-over-time", "figure"),
+        Output("total-raised-lollipop", "figure"),
         Output("category-bar", "figure"),
         Output("clinical-stage-bar", "figure"),
         Output("geo-map", "figure"),
@@ -896,14 +932,16 @@ def create_app() -> dash.Dash:
         State("filter-category", "value"),
         State("filter-stage", "value"),
         State("filter-country", "value"),
+        State("lollipop-yscale-toggle", "value"),
         prevent_initial_call=True,
     )
     def update_figures(
         apply_clicks, reset_clicks,
-        year_range, raised_min, raised_max, sel_cats, sel_stages, sel_countries,
+        year_range, raised_min, raised_max, sel_cats, sel_stages, sel_countries, lollipop_yscale,
     ):
         triggered = ctx.triggered_id
         _no = no_update
+        y_scale = "log" if lollipop_yscale else "linear"
 
         safe_year = year_range if year_range else [FILTER_YEAR_MIN, filter_year_max]
         safe_raised_min = _normalize_funding_input(raised_min, filter_raised_min)
@@ -943,6 +981,7 @@ def create_app() -> dash.Dash:
 
             return (
                 companies_founded_over_time_figure(filtered_df, min_year=safe_year[0], max_year=safe_year[1]),
+                total_raised_lollipop_figure(filtered_df, y_scale=y_scale),
                 category_polar_bar_figure(cat_df, top_n=10),
                 clinical_stage_bar_figure(filtered_df),
                 geo_map_figure(geo_df),
@@ -957,6 +996,7 @@ def create_app() -> dash.Dash:
         if triggered == "filter-reset-btn":
             return (
                 companies_founded_over_time_figure(df),
+                total_raised_lollipop_figure(df, y_scale=y_scale),
                 category_polar_bar_figure(df, top_n=10),
                 clinical_stage_bar_figure(df),
                 geo_map_figure(df),
@@ -968,8 +1008,20 @@ def create_app() -> dash.Dash:
                 [],
             )
 
-        return (_no, _no, _no, _no, _no, _no, _no, _no, _no, _no)
-    
+        return (_no, _no, _no, _no, _no, _no, _no, _no, _no, _no, _no)
+
+    # --- Lollipop y-scale toggle -----------------------------------------
+    @app.callback(
+        Output("total-raised-lollipop", "figure", allow_duplicate=True),
+        Input("lollipop-yscale-toggle", "value"),
+        prevent_initial_call=True,
+    )
+    def toggle_lollipop_yscale(log_enabled: bool) -> Patch:
+        patch = Patch()
+        patch["layout"]["yaxis"]["type"] = "log" if log_enabled else "linear"
+        patch["layout"]["yaxis"]["autorange"] = True
+        return patch
+
     return app
 
 

@@ -10,6 +10,7 @@ from lbi_app.viz.plots import (
     clinical_stage_bar_figure,
     companies_founded_over_time_figure,
     geo_map_figure,
+    total_raised_lollipop_figure,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ def validate_dashboard_artifacts(
 
     category_polar_bar_figure(df, top_n=10)
     companies_founded_over_time_figure(df)
+    total_raised_lollipop_figure(df)
     clinical_stage_bar_figure(df)
     geo_map_figure(df)
 
