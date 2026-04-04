@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import math
 from pathlib import Path
 from importlib import metadata
 
@@ -40,6 +41,16 @@ def _format_year_founded(value: object) -> str:
     return str(value)
 
 
+def _coerce_total_raised_usd_m(value: object) -> float | None:
+    if pd.isna(value):
+        return None
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _format_list_cell(value: object) -> str:
     if isinstance(value, (list, tuple, set)):
         items = [str(item).strip() for item in value if pd.notna(item) and str(item).strip()]
@@ -58,7 +69,7 @@ def _format_list_cell(value: object) -> str:
     return text or "N/A"
 
 
-def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
+def build_detail_modal_body(title: str, rows: list[dict[str, object]]) -> list:
     def _display_location(value: object) -> str:
         text = str(value).strip() if value is not None else ""
         if not text:
@@ -71,6 +82,7 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
         {
             "Company": row.get("Company", "N/A"),
             "Year Founded": row.get("Year Founded", "N/A"),
+            "Total Funding Raised ($M)": row.get("Total Funding Raised ($M)"),
             "Category": row.get("Category", "N/A"),
             "Clinical Stage": row.get("Clinical Stage", "N/A"),
             "Location": _display_location(row.get("Location")),
@@ -81,6 +93,15 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
     columns = [
         {"name": "Company", "id": "Company"},
         {"name": "Year Founded", "id": "Year Founded"},
+        {
+            "name": "Total Funding Raised ($M)",
+            "id": "Total Funding Raised ($M)",
+            "type": "numeric",
+            "format": {
+                "specifier": ",.1f",
+                "locale": {"symbol": ["$", ""]},
+            },
+        },
         {"name": "Category", "id": "Category"},
         {"name": "Clinical Stage", "id": "Clinical Stage"},
         {"name": "Location", "id": "Location"},
@@ -137,6 +158,7 @@ def build_detail_modal_body(title: str, rows: list[dict[str, str]]) -> list:
                         *header_width_rules,
                         {"if": {"column_id": "Company"}, "whiteSpace": "nowrap"},
                         {"if": {"column_id": "Year Founded"}, "whiteSpace": "nowrap"},
+                        {"if": {"column_id": "Total Funding Raised ($M)"}, "whiteSpace": "nowrap"},
                         {"if": {"column_id": "Clinical Stage"}, "whiteSpace": "nowrap"},
                     ],
                     fixed_rows={"headers": True},
@@ -152,7 +174,7 @@ def format_detail_modal_title(filter_label: str, selected_value: str, count: int
     return f"{filter_label}: {selected_value}\n({count} {company_label})"
 
 
-def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, str]]:
+def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, object]]:
     """Format filtered company rows for the detail modal table."""
     if df_subset.empty:
         return []
@@ -161,7 +183,7 @@ def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, str]]:
     if "full overall score" in ordered.columns:
         ordered = ordered.sort_values("full overall score", ascending=False)
 
-    rows: list[dict[str, str]] = []
+    rows: list[dict[str, object]] = []
     for _, row in ordered.iterrows():
         stage_val = row.get("latest clinical stage")
         stage_text = "N/A" if pd.isna(stage_val) else str(stage_val).strip() or "N/A"
@@ -170,6 +192,9 @@ def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, str]]:
             {
                 "Company": str(row.get("Company", "N/A")).strip() or "N/A",
                 "Year Founded": _format_year_founded(row.get("year founded")),
+                "Total Funding Raised ($M)": _coerce_total_raised_usd_m(
+                    row.get("total_raised_usd_m")
+                ),
                 "Category": _format_list_cell(row.get("categories")),
                 "Clinical Stage": stage_text,
                 "Location": _format_list_cell(row.get("geo_country")),
@@ -199,6 +224,7 @@ def get_app_version() -> str:
 version = get_app_version()
 
 FILTER_YEAR_MIN = 2000
+TOTAL_RAISED_COLUMN = "total_raised_usd_m"
 
 def _as_items(value: object) -> list[str]:
     """Normalize scalar/list-like cell values into a clean string list."""
@@ -226,6 +252,7 @@ def _as_items(value: object) -> list[str]:
 def _apply_df_filters(
     df: pd.DataFrame,
     year_range: list[int],
+    funding_range: list[int],
     categories: list[str] | None,
     stages: list[str] | None,
     countries: list[str] | None,
@@ -242,6 +269,18 @@ def _apply_df_filters(
     )
     if not full_default_year_span:
         mask &= (years >= year_range[0]) & (years <= year_range[1])
+
+    if TOTAL_RAISED_COLUMN in df.columns:
+        total_raised = pd.to_numeric(df[TOTAL_RAISED_COLUMN], errors="coerce")
+        non_null_raised = total_raised.dropna()
+        if funding_range and not non_null_raised.empty:
+            full_default_funding_span = (
+                funding_range[0] <= int(math.floor(non_null_raised.min()))
+                and funding_range[1] >= int(math.ceil(non_null_raised.max()))
+            )
+            if not full_default_funding_span:
+                mask &= total_raised.between(funding_range[0], funding_range[1], inclusive="both")
+
     if categories:
         def _has_cat(cats: object) -> bool:
             return any(c in categories for c in _as_items(cats))
@@ -257,6 +296,7 @@ def _apply_df_filters(
             )
         mask &= df["geo_country"].apply(_has_country)
     return df[mask]
+
 
 def graph_loader(graph_id: str, figure: object | None = None) -> dcc.Loading:
     """Return a graph wrapped in a consistent loading spinner."""
@@ -296,6 +336,23 @@ def create_app() -> dash.Dash:
     
     # --- Filter options ------------------------------------------------------
     filter_year_max = pd.Timestamp.today().year - 1
+    raised_series = pd.to_numeric(df.get(TOTAL_RAISED_COLUMN), errors="coerce")
+    if raised_series.notna().any():
+        filter_raised_min = int(math.floor(float(raised_series.min())))
+        filter_raised_max = int(math.ceil(float(raised_series.max())))
+    else:
+        filter_raised_min = 0
+        filter_raised_max = 0
+
+    def _normalize_funding_input(value: object, fallback: int) -> int:
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return fallback
+        try:
+            parsed = int(float(value))
+        except (TypeError, ValueError):
+            return fallback
+        return max(filter_raised_min, min(parsed, filter_raised_max))
+
     all_categories = sorted(
         cat
         for cat in df["categories"].explode().dropna().unique()
@@ -555,7 +612,45 @@ def create_app() -> dash.Dash:
                                     for y in range(FILTER_YEAR_MIN, filter_year_max + 1, 5)
                                 },
                                 tooltip={"placement": "bottom", "always_visible": True},
-                                className="mb-4",
+                                className="mb-5",
+                            ),
+                            dbc.Label("Total Funding Raised ($M)"),
+                            html.Div(
+                                [
+                                    html.Div(
+                                        [
+                                            dbc.Label("Min", className="small text-muted mb-1"),
+                                            dbc.Input(
+                                                id="filter-total-raised-min",
+                                                type="number",
+                                                min=filter_raised_min,
+                                                max=filter_raised_max,
+                                                step=1,
+                                                value=filter_raised_min,
+                                                placeholder="Min $M",
+                                                className="funding-number-input funding-number-input-default",
+                                            ),
+                                        ],
+                                        className="funding-input-col",
+                                    ),
+                                    html.Div(
+                                        [
+                                            dbc.Label("Max", className="small text-muted mb-1"),
+                                            dbc.Input(
+                                                id="filter-total-raised-max",
+                                                type="number",
+                                                min=filter_raised_min,
+                                                max=filter_raised_max,
+                                                step=1,
+                                                value=filter_raised_max,
+                                                placeholder="Max $M",
+                                                className="funding-number-input funding-number-input-default",
+                                            ),
+                                        ],
+                                        className="funding-input-col",
+                                    ),
+                                ],
+                                className="funding-input-row mb-3",
                             ),
                             dbc.Label("Category", className="mt-2"),
                             dcc.Dropdown(
@@ -637,6 +732,8 @@ def create_app() -> dash.Dash:
         Input("category-bar", "clickData"),
         Input("geo-map", "clickData"),
         State("filter-year-range", "value"),
+        State("filter-total-raised-min", "value"),
+        State("filter-total-raised-max", "value"),
         State("filter-category", "value"),
         State("filter-stage", "value"),
         State("filter-country", "value"),
@@ -648,6 +745,8 @@ def create_app() -> dash.Dash:
         cat_click,
         geo_click,
         year_range,
+        raised_min,
+        raised_max,
         sel_cats,
         sel_stages,
         sel_countries,
@@ -672,7 +771,13 @@ def create_app() -> dash.Dash:
             return no_changes
 
         safe_year = year_range if year_range else [FILTER_YEAR_MIN, filter_year_max]
-        filtered_df = _apply_df_filters(df, safe_year, sel_cats, sel_stages, sel_countries)
+        safe_raised_min = _normalize_funding_input(raised_min, filter_raised_min)
+        safe_raised_max = _normalize_funding_input(raised_max, filter_raised_max)
+        safe_raised = [
+            min(safe_raised_min, safe_raised_max),
+            max(safe_raised_min, safe_raised_max),
+        ]
+        filtered_df = _apply_df_filters(df, safe_year, safe_raised, sel_cats, sel_stages, sel_countries)
 
         point = click_data["points"][0]
 
@@ -748,7 +853,29 @@ def create_app() -> dash.Dash:
             return False
 
         return is_open
-    
+
+    @app.callback(
+        Output("filter-total-raised-min", "className"),
+        Output("filter-total-raised-max", "className"),
+        Input("filter-total-raised-min", "value"),
+        Input("filter-total-raised-max", "value"),
+    )
+    def style_total_raised_inputs(min_value, max_value):
+        min_normalized = _normalize_funding_input(min_value, filter_raised_min)
+        max_normalized = _normalize_funding_input(max_value, filter_raised_max)
+
+        min_class = (
+            "funding-number-input funding-number-input-default"
+            if min_normalized == filter_raised_min
+            else "funding-number-input funding-number-input-user"
+        )
+        max_class = (
+            "funding-number-input funding-number-input-default"
+            if max_normalized == filter_raised_max
+            else "funding-number-input funding-number-input-user"
+        )
+        return min_class, max_class
+
     # --- Figures callback ------------------------------------------------
     @app.callback(
         Output("founded-over-time", "figure"),
@@ -756,12 +883,16 @@ def create_app() -> dash.Dash:
         Output("clinical-stage-bar", "figure"),
         Output("geo-map", "figure"),
         Output("filter-year-range", "value"),
+        Output("filter-total-raised-min", "value"),
+        Output("filter-total-raised-max", "value"),
         Output("filter-category", "value"),
         Output("filter-stage", "value"),
         Output("filter-country", "value"),
         Input("filter-apply-btn", "n_clicks"),
         Input("filter-reset-btn", "n_clicks"),
         State("filter-year-range", "value"),
+        State("filter-total-raised-min", "value"),
+        State("filter-total-raised-max", "value"),
         State("filter-category", "value"),
         State("filter-stage", "value"),
         State("filter-country", "value"),
@@ -769,15 +900,21 @@ def create_app() -> dash.Dash:
     )
     def update_figures(
         apply_clicks, reset_clicks,
-        year_range, sel_cats, sel_stages, sel_countries,
+        year_range, raised_min, raised_max, sel_cats, sel_stages, sel_countries,
     ):
         triggered = ctx.triggered_id
         _no = no_update
 
         safe_year = year_range if year_range else [FILTER_YEAR_MIN, filter_year_max]
+        safe_raised_min = _normalize_funding_input(raised_min, filter_raised_min)
+        safe_raised_max = _normalize_funding_input(raised_max, filter_raised_max)
+        safe_raised = [
+            min(safe_raised_min, safe_raised_max),
+            max(safe_raised_min, safe_raised_max),
+        ]
 
         if triggered == "filter-apply-btn":
-            filtered_df = _apply_df_filters(df, safe_year, sel_cats, sel_stages, sel_countries)
+            filtered_df = _apply_df_filters(df, safe_year, safe_raised, sel_cats, sel_stages, sel_countries)
 
             cat_df = filtered_df.copy()
             if sel_cats:
@@ -813,6 +950,8 @@ def create_app() -> dash.Dash:
                 _no,
                 _no,
                 _no,
+                _no,
+                _no,
             )
 
         if triggered == "filter-reset-btn":
@@ -822,12 +961,14 @@ def create_app() -> dash.Dash:
                 clinical_stage_bar_figure(df),
                 geo_map_figure(df),
                 [FILTER_YEAR_MIN, filter_year_max],
+                filter_raised_min,
+                filter_raised_max,
                 [],
                 [],
                 [],
             )
 
-        return (_no, _no, _no, _no, _no, _no, _no, _no)
+        return (_no, _no, _no, _no, _no, _no, _no, _no, _no, _no)
     
     return app
 

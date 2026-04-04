@@ -429,6 +429,63 @@ def clean_clinical_stage(s: pd.Series) -> pd.Series:
     return s.apply(_normalize_value)
 
 
+def clean_total_raised_usd_m(s: pd.Series) -> pd.Series:
+    """
+    Parse total funding raised values into numeric USD millions.
+
+    Examples:
+    - "$2,500" -> 2500.0
+    - "2.5B" -> 2500.0
+    - "87" -> 87.0
+    - "unknown" / "undisclosed" -> <NA>
+    """
+
+    missing_tokens = {
+        "",
+        "na",
+        "n/a",
+        "none",
+        "null",
+        "nan",
+        "unknown",
+        "undisclosed",
+        "-",
+        "?",
+        "tbd",
+    }
+    pattern = re.compile(r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*([kmb])?", re.IGNORECASE)
+
+    def _parse(value: object) -> float | pd.NA:
+        if pd.isna(value):
+            return pd.NA
+
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+
+        text = str(value).strip().lower()
+        if text in missing_tokens:
+            return pd.NA
+
+        match = pattern.search(text)
+        if not match:
+            return pd.NA
+
+        base = float(match.group(1).replace(",", ""))
+        suffix = (match.group(2) or "").lower()
+
+        multiplier = 1.0
+        if suffix == "k":
+            multiplier = 0.001
+        elif suffix == "m":
+            multiplier = 1.0
+        elif suffix == "b":
+            multiplier = 1000.0
+
+        return base * multiplier
+
+    return s.apply(_parse).astype("Float64")
+
+
 def derive_latest_clinical_stage(s: pd.Series) -> pd.Series:
     """
     Derive one stage per row from a list-valued clinical stage column.
@@ -631,6 +688,27 @@ def transform_companies(
         
         df["categories"] = df["categories"].apply(deduplicate_row)
 
+    # 4d) Parse total funding raised to normalized numeric USD millions.
+    total_raised_source_col = next(
+        (
+            col
+            for col in (
+                "tot. raised",
+                "tot. raised (us$m)",
+                "tot. raised (usd$m)",
+                "total raised",
+            )
+            if col in df.columns
+        ),
+        None,
+    )
+    if total_raised_source_col:
+        df["total_raised_usd_m"] = clean_total_raised_usd_m(df[total_raised_source_col])
+        logger.info(
+            "Cleaned %r into normalized column 'total_raised_usd_m'.",
+            total_raised_source_col,
+        )
+
 
     # 5) Optionally drop fully empty columns
     dropped_empty_cols: list[str] = []
@@ -655,6 +733,7 @@ def transform_companies(
         "duplicate_names_detected": len(dup_names),
         "fully_empty_columns_dropped": len(dropped_empty_cols),
         "date_columns_converted": len(converted_date_cols),
+        "has_total_raised_usd_m": "total_raised_usd_m" in df.columns,
     }
 
     logger.info(

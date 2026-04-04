@@ -22,6 +22,7 @@ REQUIRED_DASHBOARD_COLUMNS = (
     "categories",
     "geo_country",
     "year founded",
+    "total_raised_usd_m",
     "latest clinical stage",
     "full overall score",
 )

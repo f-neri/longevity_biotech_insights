@@ -122,45 +122,126 @@
     display: none !important;
 }
 
-#filter-year-range {
+.funding-input-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.6rem;
+    align-items: flex-end;
+}
+
+.funding-input-col {
+    flex: 0 0 auto;
+    width: clamp(7rem, 34vw, 8.75rem);
+}
+
+.filter-modal-body .funding-input-col .form-label {
+    color: #adafae !important;
+}
+
+.filter-modal-body .funding-number-input {
+    background-color: #1a1a1a !important;
+    border: 1px solid #555555 !important;
+    border-style: solid !important;
+    border-width: 1px !important;
+    border-color: #555555 !important;
+    border-radius: 0.375rem !important;
+    color: #555555 !important;
+    box-shadow: none !important;
+}
+
+.filter-modal-body .funding-number-input:focus {
+    background-color: #1a1a1a !important;
+    border-color: #2a9fd6 !important;
+    box-shadow: 0 0 0 2px rgba(42, 159, 214, 0.25) !important;
+}
+
+.filter-modal-body .funding-number-input-default {
+    color: #6c757d !important;
+    border-color: #555555 !important;
+}
+
+.filter-modal-body .funding-number-input-user {
+    color: #2a9fd6 !important;
+    border-color: #2a9fd6 !important;
+}
+
+.filter-modal-body .funding-number-input::placeholder {
+    color: #6c757d !important;
+}
+
+#filter-year-range,
+#filter-total-raised-range {
     padding-left: 16px;
     padding-right: 16px;
 }
 
-#filter-year-range .dash-slider-track {
+.filter-slider-with-tooltips {
+    position: relative;
+    padding-top: 1.7rem;
+}
+
+.filter-slider-tooltip-badge {
+    position: absolute;
+    top: 0;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+    background-color: #2a9fd6;
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    box-shadow: none;
+    pointer-events: none;
+}
+
+#filter-year-range .dash-slider-track,
+#filter-total-raised-range .dash-slider-track {
     background-color: #555555 !important;
 }
 
-#filter-year-range .dash-slider-range {
+#filter-year-range .dash-slider-range,
+#filter-total-raised-range .dash-slider-range {
     background-color: #2a9fd6 !important;
 }
 
-#filter-year-range .dash-slider-thumb {
+#filter-year-range .dash-slider-thumb,
+#filter-total-raised-range .dash-slider-thumb {
     background-color: #2a9fd6 !important;
     border-color: #ffffff !important;
 }
 
 #filter-year-range .dash-slider-thumb:hover,
-#filter-year-range .dash-slider-thumb:focus {
+#filter-year-range .dash-slider-thumb:focus,
+#filter-total-raised-range .dash-slider-thumb:hover,
+#filter-total-raised-range .dash-slider-thumb:focus {
     box-shadow: 0 0 5px #2a9fd6 !important;
     outline-color: #8fe9ff !important;
 }
 
-#filter-year-range .dash-slider-mark {
+#filter-year-range .dash-slider-mark,
+#filter-total-raised-range .dash-slider-mark {
     color: #adafae !important;
 }
 
-#filter-year-range .dash-slider-mark-outside-selection {
+#filter-year-range .dash-slider-mark-outside-selection,
+#filter-total-raised-range .dash-slider-mark-outside-selection {
     color: #6c757d !important;
 }
 
-#filter-year-range .dash-slider-tooltip {
+#filter-year-range .dash-slider-tooltip,
+#filter-total-raised-range .dash-slider-tooltip {
     background-color: #2a9fd6 !important;
     color: #ffffff !important;
     box-shadow: none !important;
 }
 
-#filter-year-range .dash-slider-tooltip > div {
+#filter-year-range .dash-slider-tooltip > div,
+#filter-total-raised-range .dash-slider-tooltip > div {
     color: #ffffff !important;
 }
 
