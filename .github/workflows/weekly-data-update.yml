@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: weekly-data-update
@@ -42,31 +43,23 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Commit updated artifacts
+      - name: Create or update refresh pull request
         if: steps.changes.outputs.changed == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/companies_raw.csv data/companies_clean.csv data/companies_clean.parquet
-          git commit -m "chore(data): weekly data refresh"
-          git push
+        uses: peter-evans/create-pull-request@v7
+        with:
+          add-paths: |
+            data/companies_raw.csv
+            data/companies_clean.csv
+            data/companies_clean.parquet
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          base: main
+          body-path: .github/PULL_REQUEST_TEMPLATE/data-refresh.md
+          branch: automation/weekly-data-refresh
+          commit-message: "chore(data): refresh dashboard artifacts"
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          delete-branch: true
+          title: "chore(data): weekly data refresh"
 
-      - name: Validate Hugging Face mirror secrets
-        if: steps.changes.outputs.changed == 'true'
-        env:
-          HF_USERNAME: ${{ vars.HF_USERNAME }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO }}
-        run: |
-          test -n "$HF_USERNAME" || (echo "Missing required variable: HF_USERNAME" && exit 1)
-          test -n "$HF_TOKEN" || (echo "Missing required secret: HF_TOKEN" && exit 1)
-          test -n "$HF_SPACE_REPO" || (echo "Missing required variable: HF_SPACE_REPO" && exit 1)
-
-      - name: Mirror updated branch to Hugging Face Space
-        if: steps.changes.outputs.changed == 'true'
-        env:
-          HF_USERNAME: ${{ vars.HF_USERNAME }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO }}
-        run: |
-          git push "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_REPO}" HEAD:main
+      - name: No data changes
+        if: steps.changes.outputs.changed != 'true'
+        run: echo "No tracked data changes detected; skipping pull request creation."
