@@ -34,10 +34,16 @@ pip install -e .
 ```bash
 pip install -e ".[optional]"
 ```
+This installs development tools used by CI, including `pytest` and `ruff`.
 
 ### 3c. Run tests
 ```bash
 pytest -q
+```
+
+### 3d. Run lint checks
+```bash
+ruff check .
 ```
 
 ### 4. Run the dashboard
