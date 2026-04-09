@@ -4,6 +4,7 @@ from lbi_app.etl.transform import (
     clean_categories,
     clean_clinical_stage,
     clean_geo,
+    clean_operating_status,
     clean_total_raised_usd_m,
     derive_geo_country,
     make_unique_columns,
@@ -61,6 +62,19 @@ def test_clean_total_raised_usd_m_parses_currency_and_text_values() -> None:
     assert pd.isna(result.iloc[4])
 
 
+def test_clean_operating_status_maps_free_text_to_canonical_values() -> None:
+    series = pd.Series([
+        "operating*",
+        "acquired*, operating independly",
+        "closed / defunct",
+        None,
+    ])
+
+    result = clean_operating_status(series)
+
+    assert result.astype(str).tolist() == ["Operating", "Acquired", "Closed", "Unknown"]
+
+
 def test_transform_companies_creates_total_raised_usd_m_column() -> None:
     raw = pd.DataFrame(
         {
@@ -69,6 +83,7 @@ def test_transform_companies_creates_total_raised_usd_m_column() -> None:
             "year founded": ["2015", "2018", "2020"],
             "categories": ["metabolism", "stem cells", "epigenetic"],
             "clinical stage": ["pre-clinical", "phase 1", "approved"],
+            "operating status": ["operating", "acquired (see notes)", None],
             "geo": ["SF", "Boston, MA", "London"],
             "full overall score": [1.0, 2.0, 3.0],
         }
@@ -77,6 +92,8 @@ def test_transform_companies_creates_total_raised_usd_m_column() -> None:
     result = transform_companies(raw)
 
     assert "total_raised_usd_m" in result.columns
+    assert "operating status" in result.columns
     assert result.loc[0, "total_raised_usd_m"] == 120.0
     assert pd.isna(result.loc[1, "total_raised_usd_m"])
     assert result.loc[2, "total_raised_usd_m"] == 2500.0
+    assert result["operating status"].astype(str).tolist() == ["Operating", "Acquired", "Unknown"]

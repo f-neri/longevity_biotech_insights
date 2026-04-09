@@ -10,6 +10,7 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, Patch, State, ctx, dcc, html, no_update, dash_table
 from flask import Response
 import pandas as pd
+from lbi_app.etl.transform import OPERATING_STATUS_ORDER
 from lbi_app.theme import CYBORG, build_css_root_block
 
 from lbi_app.viz.plots import (
@@ -112,6 +113,7 @@ def build_detail_modal_body(
             "Category": row.get("Category"),
             "Clinical Stage": row.get("Clinical Stage"),
             "Location": _display_location(row.get("Location")),
+            "Operating Status": row.get("Operating Status"),
         }
         for row in rows
     ]
@@ -131,6 +133,7 @@ def build_detail_modal_body(
         {"name": "Category", "id": "Category"},
         {"name": "Clinical Stage", "id": "Clinical Stage"},
         {"name": "Location", "id": "Location"},
+        {"name": "Operating Status", "id": "Operating Status"},
     ]
 
     # Ensure header labels do not clip by deriving a minimum width from label length.
@@ -187,6 +190,7 @@ def build_detail_modal_body(
                         {"if": {"column_id": "Year Founded"}, "whiteSpace": "nowrap"},
                         {"if": {"column_id": "Total Funding Raised ($M)"}, "whiteSpace": "nowrap"},
                         {"if": {"column_id": "Clinical Stage"}, "whiteSpace": "nowrap"},
+                        {"if": {"column_id": "Operating Status"}, "whiteSpace": "nowrap"},
                     ],
                     fixed_rows={"headers": True},
                 ),
@@ -214,6 +218,8 @@ def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, object]]:
     for _, row in ordered.iterrows():
         stage_val = row.get("latest clinical stage")
         stage_text = None if pd.isna(stage_val) else str(stage_val).strip() or None
+        operating_status_val = row.get("operating status")
+        operating_status_text = None if pd.isna(operating_status_val) else str(operating_status_val).strip() or None
 
         rows.append(
             {
@@ -224,6 +230,7 @@ def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, object]]:
                 ),
                 "Category": _format_list_cell(row.get("categories")),
                 "Clinical Stage": stage_text,
+                "Operating Status": operating_status_text,
                 "Location": _format_list_cell(row.get("geo_country")),
             }
         )
@@ -279,6 +286,7 @@ def _apply_df_filters(
     funding_range: list[int],
     categories: list[str] | None,
     stages: list[str] | None,
+    operating_statuses: list[str] | None,
     countries: list[str] | None,
 ) -> pd.DataFrame:
     """Return a filtered copy of df based on dashboard filter selections."""
@@ -311,6 +319,8 @@ def _apply_df_filters(
         mask &= df["categories"].apply(_has_cat)
     if stages:
         mask &= df["latest clinical stage"].isin(stages)
+    if operating_statuses:
+        mask &= df["operating status"].astype("string").str.strip().isin(operating_statuses)
     if countries:
         def _has_country(geo_list: object) -> bool:
             return any(
@@ -388,6 +398,12 @@ def create_app() -> dash.Dash:
     ]
     _present_stages = set(df["latest clinical stage"].dropna().astype(str).unique())
     all_stages = [s for s in _stage_order if s in _present_stages]
+    _present_operating_statuses = set(
+        df["operating status"].dropna().astype(str).str.strip().unique()
+    )
+    all_operating_statuses = [
+        status for status in OPERATING_STATUS_ORDER if status in _present_operating_statuses
+    ]
     all_countries = sorted(
         c
         for c in (
@@ -550,7 +566,7 @@ def create_app() -> dash.Dash:
                 category, current clinical development stage (pre-clinical through commercial),
                 and geographic location across more than 30 countries.
                 Use the Filter button to refine the dashboard by year founded range, category,
-                clinical stage, or country.
+                clinical stage, operating status, or country.
                 Click any chart to see a detailed company breakdown.
                 Data sourced from [AgingBiotech.info/companies](https://agingbiotech.info/companies/).
                 """,
@@ -728,6 +744,17 @@ def create_app() -> dash.Dash:
                                 placeholder="All countries",
                                 className="mb-3",
                             ),
+                            dbc.Label("Operating Status", className="mt-2"),
+                            dcc.Dropdown(
+                                id="filter-operating-status",
+                                options=[
+                                    {"label": status, "value": status}
+                                    for status in all_operating_statuses
+                                ],
+                                multi=True,
+                                placeholder="All operating statuses",
+                                className="mb-3",
+                            ),
                         ],
                         className="filter-modal-body",
                     ),
@@ -790,6 +817,7 @@ def create_app() -> dash.Dash:
         State("filter-total-raised-max", "value"),
         State("filter-category", "value"),
         State("filter-stage", "value"),
+        State("filter-operating-status", "value"),
         State("filter-country", "value"),
         prevent_initial_call=True,
     )
@@ -804,6 +832,7 @@ def create_app() -> dash.Dash:
         raised_max,
         sel_cats,
         sel_stages,
+        sel_operating_statuses,
         sel_countries,
     ):
         triggered = ctx.triggered_id
@@ -834,7 +863,15 @@ def create_app() -> dash.Dash:
             min(safe_raised_min, safe_raised_max),
             max(safe_raised_min, safe_raised_max),
         ]
-        filtered_df = _apply_df_filters(df, safe_year, safe_raised, sel_cats, sel_stages, sel_countries)
+        filtered_df = _apply_df_filters(
+            df,
+            safe_year,
+            safe_raised,
+            sel_cats,
+            sel_stages,
+            sel_operating_statuses,
+            sel_countries,
+        )
 
         point = click_data["points"][0]
 
@@ -967,6 +1004,7 @@ def create_app() -> dash.Dash:
         Output("filter-total-raised-max", "value"),
         Output("filter-category", "value"),
         Output("filter-stage", "value"),
+        Output("filter-operating-status", "value"),
         Output("filter-country", "value"),
         Input("filter-apply-btn", "n_clicks"),
         Input("filter-reset-btn", "n_clicks"),
@@ -975,13 +1013,21 @@ def create_app() -> dash.Dash:
         State("filter-total-raised-max", "value"),
         State("filter-category", "value"),
         State("filter-stage", "value"),
+        State("filter-operating-status", "value"),
         State("filter-country", "value"),
         State("lollipop-yscale-toggle", "value"),
         prevent_initial_call=True,
     )
     def update_figures(
         apply_clicks, reset_clicks,
-        year_range, raised_min, raised_max, sel_cats, sel_stages, sel_countries, lollipop_yscale,
+        year_range,
+        raised_min,
+        raised_max,
+        sel_cats,
+        sel_stages,
+        sel_operating_statuses,
+        sel_countries,
+        lollipop_yscale,
     ):
         triggered = ctx.triggered_id
         _no = no_update
@@ -996,7 +1042,15 @@ def create_app() -> dash.Dash:
         ]
 
         if triggered == "filter-apply-btn":
-            filtered_df = _apply_df_filters(df, safe_year, safe_raised, sel_cats, sel_stages, sel_countries)
+            filtered_df = _apply_df_filters(
+                df,
+                safe_year,
+                safe_raised,
+                sel_cats,
+                sel_stages,
+                sel_operating_statuses,
+                sel_countries,
+            )
 
             cat_df = filtered_df.copy()
             if sel_cats:
@@ -1035,6 +1089,7 @@ def create_app() -> dash.Dash:
                 _no,
                 _no,
                 _no,
+                _no,
             )
 
         if triggered == "filter-reset-btn":
@@ -1050,9 +1105,10 @@ def create_app() -> dash.Dash:
                 [],
                 [],
                 [],
+                [],
             )
 
-        return (_no, _no, _no, _no, _no, _no, _no, _no, _no, _no, _no)
+        return (_no, _no, _no, _no, _no, _no, _no, _no, _no, _no, _no, _no)
 
     # --- Lollipop y-scale toggle -----------------------------------------
     @app.callback(

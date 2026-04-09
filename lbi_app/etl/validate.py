@@ -25,6 +25,7 @@ REQUIRED_DASHBOARD_COLUMNS = (
     "year founded",
     "total_raised_usd_m",
     "latest clinical stage",
+    "operating status",
     "full overall score",
 )
 

@@ -55,10 +55,10 @@ jobs:
           base: main
           body-path: .github/PULL_REQUEST_TEMPLATE/data-refresh.md
           branch: automation/weekly-data-refresh
-          commit-message: "chore(data): refresh dashboard artifacts"
+          commit-message: 'chore(data): refresh dashboard artifacts'
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           delete-branch: true
-          title: "chore(data): weekly data refresh"
+          title: 'chore(data): weekly data refresh'
 
       - name: No data changes
         if: steps.changes.outputs.changed != 'true'
