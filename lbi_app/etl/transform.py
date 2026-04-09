@@ -454,20 +454,20 @@ def clean_total_raised_usd_m(s: pd.Series) -> pd.Series:
     }
     pattern = re.compile(r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*([kmb])?", re.IGNORECASE)
 
-    def _parse(value: object) -> float | pd.NA:
+    def _parse(value: object) -> float | None:
         if pd.isna(value):
-            return pd.NA
+            return None
 
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             return float(value)
 
         text = str(value).strip().lower()
         if text in missing_tokens:
-            return pd.NA
+            return None
 
         match = pattern.search(text)
         if not match:
-            return pd.NA
+            return None
 
         base = float(match.group(1).replace(",", ""))
         suffix = (match.group(2) or "").lower()
