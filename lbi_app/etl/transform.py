@@ -189,7 +189,6 @@ def clean_geo(s: pd.Series) -> pd.Series:
             return []
 
         last = parts[-1].upper()
-        first = parts[0].upper()
 
         # "City, ST" pattern → US state abbreviation
         if len(parts) == 2 and last in _US_STATE_ABBREVS:
