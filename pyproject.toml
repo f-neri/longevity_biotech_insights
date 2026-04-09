@@ -24,6 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 optional = [
   "pytest>=8.0",
+  "ruff>=0.11",
 ]
 
 [project.scripts]
@@ -37,3 +38,6 @@ include = ["lbi_app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
