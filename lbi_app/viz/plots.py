@@ -5,33 +5,18 @@ import math
 import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.colors as pc
+from lbi_app.theme import (
+    CYBORG,
+    GEO_COLOR_SCALE,
+    MAP_LAND_COLOR,
+    PLOTLY_COLORWAY,
+    POLAR_BLUE_SCALE,
+)
 
 
 # ----------------------------
 # Theme + Plotly template
 # ----------------------------
-
-CYBORG = {
-    "bg": "#060606",
-    "fg": "#adafae",
-    "grid": "rgba(255,255,255,0.1)",
-    "border": "#dee2e6",
-    "primary": "#2a9fd6",
-    "secondary": "#555555",
-    "success": "#77b300",
-    "info": "#9933cc",
-    "warning": "#ff8800",
-    "danger": "#cc0000",
-}
-
-PLOTLY_COLORWAY = [
-    CYBORG["primary"],
-    CYBORG["info"],
-    CYBORG["success"],
-    CYBORG["warning"],
-    CYBORG["danger"],
-    CYBORG["secondary"],
-]
 
 
 def register_lbi_template(*, name: str = "lbi_cyborg") -> str:
@@ -128,14 +113,6 @@ def category_polar_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
     company_lists = counts["company_list"].tolist()
 
     max_r = max(values) if values else 0.0
-    blue_scale = [
-        [0.00, "#0a1f44"],
-        [0.20, "#123b73"],
-        [0.45, "#1f6db2"],
-        [0.70, "#35a3dc"],
-        [1.00, "#8fe9ff"],
-    ]
-
     if max_r > 0:
         # Stack thin radial slices to emulate a smooth vertical gradient inside each wedge.
         n_steps = min(64, max(24, int(max_r * 2)))
@@ -159,7 +136,7 @@ def category_polar_bar_figure(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
                 continue
 
             color_ratio = upper / max_r
-            slice_color = pc.sample_colorscale(blue_scale, [color_ratio])[0]
+            slice_color = pc.sample_colorscale(POLAR_BLUE_SCALE, [color_ratio])[0]
 
             fig.add_trace(
                 go.Barpolar(
@@ -563,17 +540,6 @@ def geo_map_figure(df: pd.DataFrame) -> go.Figure:
     tickvals = [math.log1p(v) for v in tick_counts]
     ticktext = [str(v) for v in tick_counts]
 
-    geo_colorscale = [
-        [0.00, "#081320"],
-        [0.08, "#0d2540"],
-        [0.18, "#143c63"],
-        [0.32, "#1a5a86"],
-        [0.50, "#237aa8"],
-        [0.68, "#2f9ac2"],
-        [0.84, "#4dbcdc"],
-        [1.00, "#82e4f5"],
-    ]
-
     fig = go.Figure(
         go.Choropleth(
             locations=counts["geo_country"],
@@ -583,7 +549,7 @@ def geo_map_figure(df: pd.DataFrame) -> go.Figure:
             zmax=zmax,
             text=counts["hover_text"],
             hovertemplate="%{text}<extra></extra>",
-            colorscale=geo_colorscale,
+            colorscale=GEO_COLOR_SCALE,
             colorbar=dict(
                 tickvals=tickvals,
                 ticktext=ticktext,
@@ -608,9 +574,9 @@ def geo_map_figure(df: pd.DataFrame) -> go.Figure:
             showcoastlines=True,
             coastlinecolor=CYBORG["secondary"],
             showland=True,
-            landcolor="#111111",
+            landcolor=MAP_LAND_COLOR,
             showocean=True,
-            oceancolor="#060606",
+            oceancolor=CYBORG["bg"],
             showlakes=False,
             projection_type="natural earth",
             bgcolor="rgba(0,0,0,0)",

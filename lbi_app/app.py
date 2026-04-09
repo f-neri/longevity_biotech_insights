@@ -10,6 +10,7 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, Patch, State, ctx, dcc, html, no_update, dash_table
 from flask import Response
 import pandas as pd
+from lbi_app.theme import CYBORG, build_css_root_block
 
 from lbi_app.viz.plots import (
     category_polar_bar_figure,
@@ -23,6 +24,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # match the format used by the pipeline/load step
 CLEAN_PATH = REPO_ROOT / "data" / "companies_clean.parquet"
 
+FILTER_YEAR_MIN = 2000
+TOTAL_RAISED_COLUMN = "total_raised_usd_m"
+ROOT_CSS_BLOCK = build_css_root_block()
 
 def load_snapshot() -> pd.DataFrame:
     """
@@ -31,15 +35,18 @@ def load_snapshot() -> pd.DataFrame:
     return pd.read_parquet(CLEAN_PATH)
 
 
-def _format_year_founded(value: object) -> str:
+def _format_year_founded(value: object) -> str | None:
     if pd.isna(value):
-        return "N/A"
+        return None
 
     timestamp = pd.to_datetime(value, errors="coerce")
     if pd.notna(timestamp):
         return str(timestamp.year)
 
-    return str(value)
+    text = str(value).strip()
+    if not text or text.lower() in {"unknown", "n/a", "na"}:
+        return None
+    return text
 
 
 def _coerce_total_raised_usd_m(value: object) -> float | None:
@@ -52,22 +59,32 @@ def _coerce_total_raised_usd_m(value: object) -> float | None:
         return None
 
 
-def _format_list_cell(value: object) -> str:
+def _format_list_cell(value: object) -> str | None:
     if isinstance(value, (list, tuple, set)):
-        items = [str(item).strip() for item in value if pd.notna(item) and str(item).strip()]
-        return ", ".join(items) if items else "N/A"
+        items = [
+            str(item).strip()
+            for item in value
+            if pd.notna(item) and str(item).strip() and str(item).strip().lower() not in {"unknown", "n/a", "na"}
+        ]
+        return ", ".join(items) if items else None
 
     if hasattr(value, "tolist") and not isinstance(value, (str, bytes)):
         converted = value.tolist()
         if isinstance(converted, list):
-            items = [str(item).strip() for item in converted if pd.notna(item) and str(item).strip()]
-            return ", ".join(items) if items else "N/A"
+            items = [
+                str(item).strip()
+                for item in converted
+                if pd.notna(item) and str(item).strip() and str(item).strip().lower() not in {"unknown", "n/a", "na"}
+            ]
+            return ", ".join(items) if items else None
 
     if pd.isna(value):
-        return "N/A"
+        return None
 
     text = str(value).strip()
-    return text or "N/A"
+    if not text or text.lower() in {"unknown", "n/a", "na"}:
+        return None
+    return text
 
 
 def build_detail_modal_body(
@@ -75,21 +92,25 @@ def build_detail_modal_body(
     rows: list[dict[str, object]],
     initial_sort_by: list[dict[str, str]] | None = None,
 ) -> list:
-    def _display_location(value: object) -> str:
+    def _display_location(value: object) -> str | None:
         text = str(value).strip() if value is not None else ""
         if not text:
-            return "N/A"
+            return None
         parts = [part.strip() for part in text.split(",")]
-        normalized = ["N/A" if part == "Unknown" else part for part in parts if part]
-        return ", ".join(normalized) if normalized else "N/A"
+        normalized = [
+            part
+            for part in parts
+            if part and part.lower() not in {"unknown", "n/a", "na"}
+        ]
+        return ", ".join(normalized) if normalized else None
 
     table_rows = [
         {
-            "Company": row.get("Company", "N/A"),
-            "Year Founded": row.get("Year Founded", "N/A"),
+            "Company": row.get("Company"),
+            "Year Founded": row.get("Year Founded"),
             "Total Funding Raised ($M)": row.get("Total Funding Raised ($M)"),
-            "Category": row.get("Category", "N/A"),
-            "Clinical Stage": row.get("Clinical Stage", "N/A"),
+            "Category": row.get("Category"),
+            "Clinical Stage": row.get("Clinical Stage"),
             "Location": _display_location(row.get("Location")),
         }
         for row in rows
@@ -103,7 +124,7 @@ def build_detail_modal_body(
             "id": "Total Funding Raised ($M)",
             "type": "numeric",
             "format": {
-                "specifier": ",.1f",
+                "specifier": ",.2f",
                 "locale": {"symbol": ["$", ""]},
             },
         },
@@ -141,17 +162,17 @@ def build_detail_modal_body(
                         "overflowX": "auto",
                     },
                     style_header={
-                        "backgroundColor": "#1a1a1a",
-                        "color": "#adafae",
+                        "backgroundColor": CYBORG["surface"],
+                        "color": CYBORG["fg"],
                         "fontWeight": "600",
                         "padding": "0.4rem 0.6rem",
                         "textAlign": "left",
-                        "borderBottom": "1px solid #444444",
+                        "borderBottom": f"1px solid {CYBORG['table_divider']}",
                         "whiteSpace": "nowrap",
                     },
                     style_cell={
                         "backgroundColor": "rgba(0,0,0,0)",
-                        "color": "#adafae",
+                        "color": CYBORG["fg"],
                         "padding": "0.35rem 0.6rem",
                         "fontSize": "0.9rem",
                         "border": "none",
@@ -192,11 +213,11 @@ def _build_detail_rows(df_subset: pd.DataFrame) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for _, row in ordered.iterrows():
         stage_val = row.get("latest clinical stage")
-        stage_text = "N/A" if pd.isna(stage_val) else str(stage_val).strip() or "N/A"
+        stage_text = None if pd.isna(stage_val) else str(stage_val).strip() or None
 
         rows.append(
             {
-                "Company": str(row.get("Company", "N/A")).strip() or "N/A",
+                "Company": str(row.get("Company")).strip() if pd.notna(row.get("Company")) else None,
                 "Year Founded": _format_year_founded(row.get("year founded")),
                 "Total Funding Raised ($M)": _coerce_total_raised_usd_m(
                     row.get("total_raised_usd_m")
@@ -228,9 +249,6 @@ def get_app_version() -> str:
         return "dev"
     
 version = get_app_version()
-
-FILTER_YEAR_MIN = 2000
-TOTAL_RAISED_COLUMN = "total_raised_usd_m"
 
 def _as_items(value: object) -> list[str]:
     """Normalize scalar/list-like cell values into a clean string list."""
@@ -308,7 +326,7 @@ def graph_loader(graph_id: str, figure: object | None = None) -> dcc.Loading:
     """Return a graph wrapped in a consistent loading spinner."""
     return dcc.Loading(
         type="circle",
-        color="#2a9fd6",
+        color=CYBORG["primary"],
         delay_show=150,
         delay_hide=300,
         overlay_style={
@@ -394,6 +412,10 @@ def create_app() -> dash.Dash:
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        <style>
+        /* Injected from lbi_app.theme to keep colors single-sourced in Python */
+        __LBI_THEME_ROOT_CSS__
+        </style>
         {%metas%}
         <title>{%title%}</title>
         <meta name="description" content="Longevity Biotech Insights: interactive dashboard tracking 250+ aging and longevity biotech companies worldwide. Explore companies by founding year, research category (senescence, proteostasis, epigenetics, metabolism and more), clinical stage, and geography.">
@@ -471,7 +493,7 @@ def create_app() -> dash.Dash:
         </footer>
     </body>
 </html>
-"""
+""".replace("__LBI_THEME_ROOT_CSS__", ROOT_CSS_BLOCK)
 
     @app.server.route("/robots.txt")
     def robots_txt():
