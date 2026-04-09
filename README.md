@@ -59,16 +59,19 @@ The repository includes a GitHub Actions workflow at `.github/workflows/weekly-d
 
 - It runs every Monday at 06:00 UTC.
 - It can also be triggered manually from the GitHub Actions tab.
-- It executes `lbi-update`, which now validates the generated dashboard artifacts before the workflow can commit them.
-- It only commits and pushes when one of the tracked data artifacts changes:
+
+- It executes `lbi-update`, which validates the generated dashboard artifacts before opening or updating a pull request.
+- It only opens or updates a refresh PR when one of the tracked data artifacts changes:
 	- `data/companies_raw.csv`
 	- `data/companies_clean.csv`
 	- `data/companies_clean.parquet`
+- It keeps refreshes on a dedicated automation branch so repeated runs update the same PR instead of creating duplicates.
 
 ### Hugging Face deployment mirror
 
-This workflow pushes updated data to both GitHub and your Hugging Face Space.
-When data changes, Hugging Face configuration is required and the run fails if anything is missing.
+Merged data updates are mirrored to your Hugging Face Space by `.github/workflows/huggingface-mirror.yml`.
+This keeps the deployed Space aligned with reviewed `main` changes rather than unmerged refresh branches.
+When tracked data changes land on `main`, Hugging Face configuration is required and the mirror workflow fails if anything is missing.
 
 Configure the following in GitHub repository settings:
 
