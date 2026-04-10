@@ -20,6 +20,13 @@ CLINICAL_STAGE_ORDER = [
     "Commercial",
 ]
 
+OPERATING_STATUS_ORDER = [
+    "Operating",
+    "Acquired",
+    "Closed",
+    "Unknown",
+]
+
 # ---------------------------------------------------------------------------
 # Geo parsing lookup tables
 # ---------------------------------------------------------------------------
@@ -485,6 +492,56 @@ def clean_total_raised_usd_m(s: pd.Series) -> pd.Series:
     return s.apply(_parse).astype("Float64")
 
 
+def clean_operating_status(s: pd.Series) -> pd.Series:
+    """
+    Normalize free-text operating status values into a compact taxonomy.
+
+    Output categories are exactly:
+    - Operating
+    - Acquired
+    - Closed
+    - Unknown
+    """
+
+    missing_tokens = {
+        "",
+        "na",
+        "n/a",
+        "none",
+        "null",
+        "nan",
+        "unknown",
+        "?",
+        "tbd",
+    }
+
+    def _normalize_value(value: object) -> str:
+        if pd.isna(value):
+            return "Unknown"
+
+        text = str(value).strip().lower()
+        if text in missing_tokens:
+            return "Unknown"
+
+        text = re.sub(r"[*?!.,;:]+", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        if any(token in text for token in ("acquired", "owned by", "bought by", "buyout", "merged into")):
+            return "Acquired"
+        if any(token in text for token in ("closed", "shut down", "shutdown", "defunct", "inactive", "ceased", "dissolved", "bankrupt")):
+            return "Closed"
+        if any(token in text for token in ("operating", "active", "independent")):
+            return "Operating"
+
+        return "Unknown"
+
+    return pd.Categorical(
+        s.apply(_normalize_value),
+        categories=OPERATING_STATUS_ORDER,
+        ordered=True,
+    )
+
+
 def derive_latest_clinical_stage(s: pd.Series) -> pd.Series:
     """
     Derive one stage per row from a list-valued clinical stage column.
@@ -649,7 +706,12 @@ def transform_companies(
         df["categories"] = clean_categories(df["categories"])
         logger.info("Cleaned categories column (removed subcategories, standardized multiple choices)")
 
-    # 4c) Parse geo column into canonical country / US-state locations
+    # 4c) Clean operating status into a canonical filterable field.
+    if "operating status" in df.columns:
+        df["operating status"] = clean_operating_status(df["operating status"])
+        logger.info("Cleaned operating status column into canonical categories.")
+
+    # 4d) Parse geo column into canonical country / US-state locations
     if "geo" in df.columns:
         df["geo_clean"] = clean_geo(df["geo"])
         df["geo_country"] = derive_geo_country(df["geo_clean"])
@@ -687,7 +749,7 @@ def transform_companies(
         
         df["categories"] = df["categories"].apply(deduplicate_row)
 
-    # 4d) Parse total funding raised to normalized numeric USD millions.
+    # 4e) Parse total funding raised to normalized numeric USD millions.
     total_raised_source_col = next(
         (
             col
@@ -732,6 +794,7 @@ def transform_companies(
         "duplicate_names_detected": len(dup_names),
         "fully_empty_columns_dropped": len(dropped_empty_cols),
         "date_columns_converted": len(converted_date_cols),
+        "has_operating_status": "operating status" in df.columns,
         "has_total_raised_usd_m": "total_raised_usd_m" in df.columns,
     }
 

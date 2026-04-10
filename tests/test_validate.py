@@ -20,6 +20,7 @@ def _sample_dashboard_df() -> pd.DataFrame:
             "year founded": pd.to_datetime(["2015-01-01", "2020-01-01"]),
             "total_raised_usd_m": [120.0, 250.0],
             "latest clinical stage": ["Pre-Clinical", "Phase 1"],
+            "operating status": ["Operating", "Acquired"],
             "full overall score": [1.0, 2.0],
         }
     )
