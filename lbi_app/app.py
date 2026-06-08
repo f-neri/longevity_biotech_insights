@@ -600,17 +600,11 @@ def create_app() -> dash.Dash:
                     ),
                     dbc.Col(
                         dbc.Card(
-                            dbc.CardBody([
-                                graph_loader("total-raised-lollipop", fig_total_raised),
-                                html.Div(
-                                    dbc.Switch(
-                                        id="lollipop-yscale-toggle",
-                                        label="Log Y-axis",
-                                        value=True,
-                                    ),
-                                    className="lollipop-scale-toggle",
-                                ),
-                            ], className="position-relative"),
+                            dbc.CardBody(
+                                [
+                                    graph_loader("category-bar", fig_categories)
+                                ]
+                            ),
                         ),
                         xs=12,
                         md=12,
@@ -623,11 +617,17 @@ def create_app() -> dash.Dash:
                 [
                     dbc.Col(
                         dbc.Card(
-                            dbc.CardBody(
-                                [
-                                    graph_loader("category-bar", fig_categories)
-                                ]
-                            ),
+                            dbc.CardBody([
+                                graph_loader("total-raised-lollipop", fig_total_raised),
+                                html.Div(
+                                    dbc.Switch(
+                                        id="lollipop-yscale-toggle",
+                                        label="Log Y-axis",
+                                        value=True,
+                                    ),
+                                    className="lollipop-scale-toggle",
+                                ),
+                            ], className="position-relative"),
                         ),
                         xs=12,
                         md=12,
