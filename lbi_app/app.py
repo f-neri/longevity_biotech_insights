@@ -595,7 +595,8 @@ def create_app() -> dash.Dash:
                             ),
                         ),
                         xs=12,
-                        md=6,
+                        md=12,
+                        lg=6,
                     ),
                     dbc.Col(
                         dbc.Card(
@@ -612,7 +613,8 @@ def create_app() -> dash.Dash:
                             ], className="position-relative"),
                         ),
                         xs=12,
-                        md=6,
+                        md=12,
+                        lg=6,
                     )
                 ],
                 className="mt-3 g-3",
@@ -628,7 +630,8 @@ def create_app() -> dash.Dash:
                             ),
                         ),
                         xs=12,
-                        md=6,
+                        md=12,
+                        lg=6,
                     ),
                     dbc.Col(
                         dbc.Card(
@@ -639,7 +642,8 @@ def create_app() -> dash.Dash:
                             ),
                         ),
                         xs=12,
-                        md=6,
+                        md=12,
+                        lg=6,
                     ),
                 ],
                 className="mt-3 g-3",
