@@ -595,8 +595,26 @@ def create_app() -> dash.Dash:
                             ),
                         ),
                         xs=12,
-                        md=6,
+                        md=12,
+                        lg=6,
                     ),
+                    dbc.Col(
+                        dbc.Card(
+                            dbc.CardBody(
+                                [
+                                    graph_loader("category-bar", fig_categories)
+                                ]
+                            ),
+                        ),
+                        xs=12,
+                        md=12,
+                        lg=6,
+                    )
+                ],
+                className="mt-3 g-3",
+            ),
+            dbc.Row(
+                [
                     dbc.Col(
                         dbc.Card(
                             dbc.CardBody([
@@ -612,23 +630,8 @@ def create_app() -> dash.Dash:
                             ], className="position-relative"),
                         ),
                         xs=12,
-                        md=6,
-                    )
-                ],
-                className="mt-3 g-3",
-            ),
-            dbc.Row(
-                [
-                    dbc.Col(
-                        dbc.Card(
-                            dbc.CardBody(
-                                [
-                                    graph_loader("category-bar", fig_categories)
-                                ]
-                            ),
-                        ),
-                        xs=12,
-                        md=6,
+                        md=12,
+                        lg=6,
                     ),
                     dbc.Col(
                         dbc.Card(
@@ -639,7 +642,8 @@ def create_app() -> dash.Dash:
                             ),
                         ),
                         xs=12,
-                        md=6,
+                        md=12,
+                        lg=6,
                     ),
                 ],
                 className="mt-3 g-3",
